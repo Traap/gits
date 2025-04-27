@@ -2,18 +2,22 @@
 
 set -e
 
-# Install gits script
-mkdir -p "$HOME/.local/bin"
-cp gits "$HOME/.local/bin/gits"
-chmod +x "$HOME/.local/bin/gits"
+# Clone to /tmp/gits and run from there.
+git clone https://github.com/Traap/gits /tmp/traap/gits
+cd /tmp/traap/gits
+
+# Copy files to their production locations.
+sudo cp -v gits "$HOME/.local/bin/."
+sudo chmod +x "$HOME/.local/bin/gits"
 
 # Install default config if not present
 mkdir -p "$HOME/.config/gits"
 if [ ! -f "$HOME/.config/gits/repo_locations" ]; then
-  cp config/repo_locations "$HOME/.config/gits/repo_locations"
+  cp repo_locations "$HOME/.config/gits/repo_locations"
 fi
+
+# Cleanup temporary directory.
+rm -rfv /tmp/traap
 
 echo "Installation complete."
 echo "Add \$HOME/.local/bin to your PATH if it's not already."
-
-echo "Done."
