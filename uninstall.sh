@@ -3,6 +3,8 @@
 set -e
 
 # Remove all files nvims installed or created.
-sudo rm -fv /usr/local/bin/gits
-rm -rfv /tmp/traap
-rm -rfv "$HOME"/.config/gits
+sudo rm -f /usr/local/bin/gits
+rm -rf /tmp/traap
+rm -rf "$HOME"/.config/gits
+
+echo "Uninstall complete."
