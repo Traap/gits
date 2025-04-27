@@ -7,6 +7,10 @@ repo_args=()
 dry_run=false
 compact=true
 
+cloned=0
+updated=0
+skipped=0
+
 # -------------------------------------------------------------------------- }}}
 # {{{ Load Config
 
@@ -29,9 +33,9 @@ usage() {
   echo "  -h          Show help"
   echo "  -l          List repository locations"
   echo "  -c          Clone missing repositories"
-  echo "  -r          Pull latest changes (default)"
+  echo "  -r          Pull latest changes (default behavior)"
   echo "  -p          Alias for -r (pull)"
-  echo "  -d          Dry-run (simulate)"
+  echo "  -d          Dry-run (simulate actions)"
   echo "  -v          Verbose output"
   exit 0
 }
@@ -52,7 +56,7 @@ repo() {
   local repos_var="repo_${location}"
 
   if [[ -z "${!repos_var}" ]]; then
-    echo "No repositories defined for location: $location"
+    echo "⚠️  No repositories defined for location: $location"
     return
   fi
 
@@ -66,21 +70,33 @@ repo() {
 
     if [[ "$subcommand" == "clone" ]]; then
       if [[ ! -d "$target_dir/.git" ]]; then
-        echo "Cloning $url -> $target_dir"
+        echo "➡️  Cloning $alias from $url"
         if [[ "$dry_run" = false ]]; then
-          git clone "$url" "$target_dir"
+          if git clone "$url" "$target_dir" &>/dev/null; then
+            echo "✅  Cloned: $alias"
+            ((cloned++))
+          else
+            echo "❌  Failed to clone: $alias"
+          fi
         fi
       else
-        echo "Already exists: $target_dir"
+        echo "⚠️  Already exists: $alias"
+        ((skipped++))
       fi
     elif [[ "$subcommand" == "pull" ]]; then
       if [[ -d "$target_dir/.git" ]]; then
-        echo "Pulling $target_dir"
+        echo "⬆️  Pulling $alias"
         if [[ "$dry_run" = false ]]; then
-          (cd "$target_dir" && git pull)
+          if (cd "$target_dir" && git pull &>/dev/null); then
+            echo "✅  Updated: $alias"
+            ((updated++))
+          else
+            echo "❌  Failed to update: $alias"
+          fi
         fi
       else
-        echo "Skipping non-repo: $target_dir"
+        echo "⚠️  Not a valid repo: $alias"
+        ((skipped++))
       fi
     fi
   done
@@ -131,5 +147,13 @@ done
 for location in "${repo_args[@]}"; do
   repo "$location"
 done
+
+echo
+echo "Summary:"
+echo "  Cloned : $cloned"
+echo "  Updated: $updated"
+echo "  Skipped: $skipped"
+echo
+echo "✅ Done."
 
 # -------------------------------------------------------------------------- }}}
