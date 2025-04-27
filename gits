@@ -1,5 +1,13 @@
 #!/bin/bash
 # vim: set foldmethod=marker :
+# {{{ Variables
+
+subcommand="pull"
+repo_args=()
+dry_run=false
+compact=true
+
+# -------------------------------------------------------------------------- }}}
 # {{{ Load Config
 
 REPO_CONFIG="$HOME/.config/gits/repo_locations"
@@ -20,10 +28,11 @@ usage() {
   echo "Options:"
   echo "  -h          Show help"
   echo "  -l          List repository locations"
-  echo "  -r <names>  Specify repo location(s) (e.g., bb git vim)"
-  echo "  -p          Pull latest changes (default)"
-  echo "  -v          Verbose output"
+  echo "  -c          Clone missing repositories"
+  echo "  -r          Pull latest changes (default)"
+  echo "  -p          Alias for -r (pull)"
   echo "  -d          Dry-run (simulate)"
+  echo "  -v          Verbose output"
   exit 0
 }
 
@@ -31,7 +40,7 @@ usage() {
 # {{{ listRepos
 
 listRepos() {
-  echo "Available repo locations:"
+  echo "Available repository locations:"
   grep '^repo_' "$REPO_CONFIG" | sed 's/^repo_//;s/=.*//'
 }
 
@@ -43,7 +52,7 @@ repo() {
   local repos_var="repo_${location}"
 
   if [[ -z "${!repos_var}" ]]; then
-    echo "No repos defined for location: $location"
+    echo "No repositories defined for location: $location"
     return
   fi
 
@@ -55,30 +64,34 @@ repo() {
     local alias="${entry##* }"
     local target_dir="$basedir/$alias"
 
-    if [[ ! -d "$target_dir/.git" ]]; then
-      echo "Cloning $url -> $target_dir"
-      if [[ "$dry_run" = false ]]; then
-        git clone "$url" "$target_dir"
+    if [[ "$subcommand" == "clone" ]]; then
+      if [[ ! -d "$target_dir/.git" ]]; then
+        echo "Cloning $url -> $target_dir"
+        if [[ "$dry_run" = false ]]; then
+          git clone "$url" "$target_dir"
+        fi
+      else
+        echo "Already exists: $target_dir"
       fi
-    else
-      echo "Updating $target_dir"
-      if [[ "$do_pull" = true ]]; then
-        (cd "$target_dir" && { [[ "$dry_run" = true ]] || git pull; })
+    elif [[ "$subcommand" == "pull" ]]; then
+      if [[ -d "$target_dir/.git" ]]; then
+        echo "Pulling $target_dir"
+        if [[ "$dry_run" = false ]]; then
+          (cd "$target_dir" && git pull)
+        fi
+      else
+        echo "Skipping non-repo: $target_dir"
       fi
     fi
   done
 }
 
 # -------------------------------------------------------------------------- }}}
-# {{{ Variables
-
-repo_args=()
-do_pull=false
-dry_run=false
-compact=true
-
-# -------------------------------------------------------------------------- }}}
 # {{{ Parse Arguments
+
+if [[ $# -eq 0 ]]; then
+  usage
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -89,23 +102,20 @@ while [[ $# -gt 0 ]]; do
       listRepos
       exit 0
       ;;
-    -r)
-      shift
-      while [[ $# -gt 0 && ! $1 =~ ^- ]]; do
-        repo_args+=("$1")
-        shift
-      done
-      ;;
-    -p)
-      do_pull=true
+    -c)
+      subcommand="clone"
       shift
       ;;
-    -v)
-      compact=false
+    -r|-p)
+      subcommand="pull"
       shift
       ;;
     -d)
       dry_run=true
+      shift
+      ;;
+    -v)
+      compact=false
       shift
       ;;
     *)
@@ -117,10 +127,6 @@ done
 
 # -------------------------------------------------------------------------- }}}
 # {{{ Main
-
-if [[ ${#repo_args[@]} -eq 0 ]]; then
-  usage
-fi
 
 for location in "${repo_args[@]}"; do
   repo "$location"
