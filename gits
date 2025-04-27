@@ -6,10 +6,21 @@ subcommand="pull"
 repo_args=()
 dry_run=false
 compact=true
+clean_untracked=false
+convert_utf16=false
+list_stashes=false
 
 cloned=0
 updated=0
 skipped=0
+cleaned=0
+converted=0
+stashes=0
+
+max_jobs=4
+jobcount=0
+
+start_time=$(date +%s)
 
 # -------------------------------------------------------------------------- }}}
 # {{{ Load Config
@@ -37,6 +48,9 @@ usage() {
   echo "  -p          Alias for -r (pull)"
   echo "  -d          Dry-run (simulate actions)"
   echo "  -v          Verbose output"
+  echo "  -x          Clean untracked files after pull"
+  echo "  -U          Convert UTF-16 files to UTF-8 after pull"
+  echo "  -s          List repositories with stash entries"
   exit 0
 }
 
@@ -49,74 +63,149 @@ listRepos() {
 }
 
 # -------------------------------------------------------------------------- }}}
-# {{{ cloneRepos
+# {{{ waitForJobs
 
-cloneRepos() {
-  local location="$1"
-  local repos_var="repo_${location}"
+waitForJobs() {
+  while (( jobcount >= max_jobs )); do
+    wait -n
+    ((jobcount--))
+  done
+}
 
-  if [[ -z "${!repos_var}" ]]; then
-    echo "⚠️  No repositories defined for location: $location"
-    return
-  fi
+# -------------------------------------------------------------------------- }}}
+# {{{ detectUtf16AndConvert
 
-  local basedir="$HOME/$location"
-  mkdir -p "$basedir"
+detectUtf16AndConvert() {
+  local target_dir="$1"
 
-  for entry in "${!repos_var}"; do
-    local url="${entry%% *}"
-    local alias="${entry##* }"
-    local target_dir="$basedir/$alias"
-
-    if [[ ! -d "$target_dir/.git" ]]; then
-      echo "➡️  Cloning $alias from $url"
+  for file in "$target_dir"/*; do
+    [[ -f "$file" ]] || continue
+    if file "$file" | grep -q 'UTF-16'; then
+      echo "🔄 Converting UTF-16 to UTF-8: $(basename "$file")"
       if [[ "$dry_run" = false ]]; then
-        if git clone "$url" "$target_dir" &>/dev/null; then
-          echo "✅  Cloned: $alias"
-          ((cloned++))
-        else
-          echo "❌  Failed to clone: $alias"
-        fi
+        iconv -f UTF-16 -t UTF-8 "$file" -o "$file.new" && mv "$file.new" "$file"
+        ((converted++))
       fi
-    else
-      echo "⚠️  Already exists: $alias"
-      ((skipped++))
     fi
   done
 }
 
 # -------------------------------------------------------------------------- }}}
-# {{{ pullRepos
+# {{{ checkForStashes
 
-pullRepos() {
+checkForStashes() {
+  local dir="$1"
+
+  if [[ -d "$dir/.git" ]]; then
+    if (cd "$dir" && git stash list | grep -q .); then
+      echo "📦 Stash found: $(basename "$dir")"
+      ((stashes++))
+    fi
+  fi
+}
+
+# -------------------------------------------------------------------------- }}}
+# {{{ cloneRepo
+
+cloneRepo() {
+  local url="$1"
+  local target_dir="$2"
+
+  if [[ ! -d "$target_dir/.git" ]]; then
+    echo "➡️  Cloning $(basename "$target_dir")"
+    if [[ "$dry_run" = false ]]; then
+      if git clone "$url" "$target_dir" &>/dev/null; then
+        echo "✅  Cloned: $(basename "$target_dir")"
+        ((cloned++))
+      else
+        echo "❌  Failed to clone: $(basename "$target_dir")"
+      fi
+    fi
+  else
+    echo "⚠️  Already exists: $(basename "$target_dir")"
+    ((skipped++))
+  fi
+}
+
+# -------------------------------------------------------------------------- }}}
+# {{{ pullRepo
+
+pullRepo() {
+  local dir="$1"
+
+  if [[ -d "$dir/.git" ]]; then
+    echo "⬆️  Pulling $(basename "$dir")"
+
+    if [[ "$dry_run" = false ]]; then
+      local needs_stash=0
+
+      (cd "$dir" && git diff --quiet || needs_stash=1)
+
+      if ((needs_stash)); then
+        (cd "$dir" && git stash push -u -m "gits auto-stash" &>/dev/null)
+      fi
+
+      (cd "$dir" && git pull &>/dev/null)
+
+      ((updated++))
+
+      if [[ "$clean_untracked" = true ]]; then
+        (cd "$dir" && git clean -fd &>/dev/null)
+        ((cleaned++))
+      fi
+
+      if [[ "$convert_utf16" = true ]]; then
+        detectUtf16AndConvert "$dir"
+      fi
+    fi
+  else
+    echo "⚠️  Skipping non-repo: $(basename "$dir")"
+    ((skipped++))
+  fi
+}
+
+# -------------------------------------------------------------------------- }}}
+# {{{ repo
+
+repo() {
   local location="$1"
+  local repos_var="repo_${location}"
   local basedir="$HOME/$location"
 
-  if [[ ! -d "$basedir" ]]; then
-    echo "⚠️  Base directory not found: $basedir"
+  mkdir -p "$basedir"
+
+  if [[ "$list_stashes" = true ]]; then
+    for dir in "$basedir"/*; do
+      checkForStashes "$dir"
+    done
     return
   fi
 
-  for dir in "$basedir"/*; do
-    if [[ -d "$dir/.git" ]]; then
-      local repo_name
-      repo_name=$(basename "$dir")
-      echo "⬆️  Pulling $repo_name"
-      if [[ "$dry_run" = false ]]; then
-        if (cd "$dir" && git pull &>/dev/null); then
-          echo "✅  Updated: $repo_name"
-          ((updated++))
-        else
-          echo "❌  Failed to update: $repo_name"
-        fi
-      fi
+  if [[ "$subcommand" == "clone" ]]; then
+    if [[ -n "${!repos_var}" ]]; then
+      for entry in "${!repos_var}"; do
+        local url="${entry%% *}"
+        local alias="${entry##* }"
+        local target_dir="$basedir/$alias"
+
+        cloneRepo "$url" "$target_dir" &
+
+        ((jobcount++))
+        waitForJobs
+      done
     else
-      local name
-      name=$(basename "$dir")
-      echo "⚠️  Skipping non-repo: $name"
-      ((skipped++))
+      echo "⚠️  No repositories defined for location: $location"
     fi
-  done
+  elif [[ "$subcommand" == "pull" ]]; then
+    for dir in "$basedir"/*; do
+      [[ -d "$dir" ]] || continue
+
+      pullRepo "$dir" &
+
+      ((jobcount++))
+      waitForJobs
+    done
+  fi
 }
 
 # -------------------------------------------------------------------------- }}}
@@ -151,6 +240,19 @@ while [[ $# -gt 0 ]]; do
       compact=false
       shift
       ;;
+    -x)
+      clean_untracked=true
+      shift
+      ;;
+    -U)
+      convert_utf16=true
+      shift
+      ;;
+    -s)
+      list_stashes=true
+      subcommand="pull"
+      shift
+      ;;
     *)
       repo_args+=("$1")
       shift
@@ -162,19 +264,26 @@ done
 # {{{ Main
 
 for location in "${repo_args[@]}"; do
-  if [[ "$subcommand" == "clone" ]]; then
-    cloneRepos "$location"
-  elif [[ "$subcommand" == "pull" ]]; then
-    pullRepos "$location"
-  fi
+  repo "$location"
 done
+
+wait
+
+end_time=$(date +%s)
+elapsed=$((end_time - start_time))
+minutes=$((elapsed / 60))
+seconds=$((elapsed % 60))
 
 echo
 echo "Summary:"
-echo "  Cloned : $cloned"
-echo "  Updated: $updated"
-echo "  Skipped: $skipped"
+echo "  ➡️  Cloned : $cloned"
+echo "  ⬆️  Updated: $updated"
+echo "  ⚠️  Skipped: $skipped"
+echo "  🧹  Cleaned : $cleaned"
+echo "  🔄  UTF-16→8: $converted"
+echo "  📦  Stash   : $stashes"
 echo
 echo "✅ Done."
+echo "⏱️  Elapsed time: ${minutes}m ${seconds}s"
 
 # -------------------------------------------------------------------------- }}}
