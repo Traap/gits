@@ -9,9 +9,7 @@
 
 ## Installation
 ```bash
-git clone <your-repo-url>
-cd gits
-./install.sh
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Traap/gits/master/install.sh)"
 ```
 Make sure `~/.local/bin` is in your `PATH`.
 
