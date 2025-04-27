@@ -32,8 +32,8 @@ usage() {
   echo "Options:"
   echo "  -h          Show help"
   echo "  -l          List repository locations"
-  echo "  -c          Clone missing repositories"
-  echo "  -r          Pull latest changes (default behavior)"
+  echo "  -c          Clone missing repositories (based on bash arrays)"
+  echo "  -r          Pull changes for all repositories found on filesystem"
   echo "  -p          Alias for -r (pull)"
   echo "  -d          Dry-run (simulate actions)"
   echo "  -v          Verbose output"
@@ -49,9 +49,9 @@ listRepos() {
 }
 
 # -------------------------------------------------------------------------- }}}
-# {{{ repo
+# {{{ cloneRepos
 
-repo() {
+cloneRepos() {
   local location="$1"
   local repos_var="repo_${location}"
 
@@ -68,36 +68,53 @@ repo() {
     local alias="${entry##* }"
     local target_dir="$basedir/$alias"
 
-    if [[ "$subcommand" == "clone" ]]; then
-      if [[ ! -d "$target_dir/.git" ]]; then
-        echo "➡️  Cloning $alias from $url"
-        if [[ "$dry_run" = false ]]; then
-          if git clone "$url" "$target_dir" &>/dev/null; then
-            echo "✅  Cloned: $alias"
-            ((cloned++))
-          else
-            echo "❌  Failed to clone: $alias"
-          fi
+    if [[ ! -d "$target_dir/.git" ]]; then
+      echo "➡️  Cloning $alias from $url"
+      if [[ "$dry_run" = false ]]; then
+        if git clone "$url" "$target_dir" &>/dev/null; then
+          echo "✅  Cloned: $alias"
+          ((cloned++))
+        else
+          echo "❌  Failed to clone: $alias"
         fi
-      else
-        echo "⚠️  Already exists: $alias"
-        ((skipped++))
       fi
-    elif [[ "$subcommand" == "pull" ]]; then
-      if [[ -d "$target_dir/.git" ]]; then
-        echo "⬆️  Pulling $alias"
-        if [[ "$dry_run" = false ]]; then
-          if (cd "$target_dir" && git pull &>/dev/null); then
-            echo "✅  Updated: $alias"
-            ((updated++))
-          else
-            echo "❌  Failed to update: $alias"
-          fi
+    else
+      echo "⚠️  Already exists: $alias"
+      ((skipped++))
+    fi
+  done
+}
+
+# -------------------------------------------------------------------------- }}}
+# {{{ pullRepos
+
+pullRepos() {
+  local location="$1"
+  local basedir="$HOME/$location"
+
+  if [[ ! -d "$basedir" ]]; then
+    echo "⚠️  Base directory not found: $basedir"
+    return
+  fi
+
+  for dir in "$basedir"/*; do
+    if [[ -d "$dir/.git" ]]; then
+      local repo_name
+      repo_name=$(basename "$dir")
+      echo "⬆️  Pulling $repo_name"
+      if [[ "$dry_run" = false ]]; then
+        if (cd "$dir" && git pull &>/dev/null); then
+          echo "✅  Updated: $repo_name"
+          ((updated++))
+        else
+          echo "❌  Failed to update: $repo_name"
         fi
-      else
-        echo "⚠️  Not a valid repo: $alias"
-        ((skipped++))
       fi
+    else
+      local name
+      name=$(basename "$dir")
+      echo "⚠️  Skipping non-repo: $name"
+      ((skipped++))
     fi
   done
 }
@@ -111,49 +128,4 @@ fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -h)
-      usage
-      ;;
-    -l)
-      listRepos
-      exit 0
-      ;;
-    -c)
-      subcommand="clone"
-      shift
-      ;;
-    -r|-p)
-      subcommand="pull"
-      shift
-      ;;
-    -d)
-      dry_run=true
-      shift
-      ;;
-    -v)
-      compact=false
-      shift
-      ;;
-    *)
-      repo_args+=("$1")
-      shift
-      ;;
-  esac
-done
 
-# -------------------------------------------------------------------------- }}}
-# {{{ Main
-
-for location in "${repo_args[@]}"; do
-  repo "$location"
-done
-
-echo
-echo "Summary:"
-echo "  Cloned : $cloned"
-echo "  Updated: $updated"
-echo "  Skipped: $skipped"
-echo
-echo "✅ Done."
-
-# -------------------------------------------------------------------------- }}}
