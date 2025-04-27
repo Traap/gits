@@ -17,7 +17,7 @@ if [ ! -f "$HOME/.config/gits/repo_locations" ]; then
 fi
 
 # Cleanup temporary directory.
-rm -rfv /tmp/traap
+rm -rf /tmp/traap
 
 echo "Installation complete."
 echo "Add \$HOME/.local/bin to your PATH if it's not already."
