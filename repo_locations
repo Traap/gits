@@ -1,6 +1,9 @@
 # Example repo_locations file
 # Define repos in arrays
 
+# Bash array name naming convention is repo_{name} where {name} is the repository
+# location $HOME/{name}.
+
 repo_soup=(
   "git@github.com:Traap/amber.git amber"
 )
