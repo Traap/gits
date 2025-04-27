@@ -15,7 +15,7 @@
 
 ### Removal
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Traap/gits/master/install.sh)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Traap/gits/master/uninstall.sh)"
 ```
 
 ### Use
