@@ -43,8 +43,8 @@ usage() {
   echo "Options:"
   echo "  -h          Show help"
   echo "  -l          List repository locations"
-  echo "  -c          Clone missing repositories (based on bash arrays)"
-  echo "  -r          Pull changes for all repositories found on filesystem"
+  echo "  -c          Clone missing repositories (from bash arrays)"
+  echo "  -r          Pull changes from filesystem repositories"
   echo "  -p          Alias for -r (pull)"
   echo "  -d          Dry-run (simulate actions)"
   echo "  -v          Verbose output"
@@ -183,7 +183,7 @@ repo() {
 
   if [[ "$subcommand" == "clone" ]]; then
     if [[ -n "${!repos_var}" ]]; then
-      for entry in "${!repos_var}"; do
+      for entry in "${repos_var[@]}"; do
         local url="${entry%% *}"
         local alias="${entry##* }"
         local target_dir="$basedir/$alias"
