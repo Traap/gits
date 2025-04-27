@@ -1,0 +1,23 @@
+# Example repo_locations file
+# Define repos in arrays
+
+repo_bb=(
+  "git@github.com:Traap/amber.git amber"
+  "git@github.com:Traap/nvim.git nvim"
+)
+
+repo_git=(
+  "https://git.sr.ht/~traap/gits gits"
+)
+
+repo_vim=(
+  "https://github.com/neovim/neovim.git neovim"
+)
+
+
+
+---
+
+## License
+MIT License
+

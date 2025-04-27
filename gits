@@ -1,0 +1,129 @@
+#!/bin/bash
+# vim: set foldmethod=marker :
+# {{{ Load Config
+
+REPO_CONFIG="$HOME/.config/gits/repo_locations"
+
+if [[ -f "$REPO_CONFIG" ]]; then
+  source "$REPO_CONFIG"
+else
+  echo "ERROR: repo_locations file not found at $REPO_CONFIG" >&2
+  exit 1
+fi
+
+# -------------------------------------------------------------------------- }}}
+# {{{ usage
+
+usage() {
+  echo "Usage: gits [options] [repo-locations...]"
+  echo
+  echo "Options:"
+  echo "  -h          Show help"
+  echo "  -l          List repository locations"
+  echo "  -r <names>  Specify repo location(s) (e.g., bb git vim)"
+  echo "  -p          Pull latest changes (default)"
+  echo "  -v          Verbose output"
+  echo "  -d          Dry-run (simulate)"
+  exit 0
+}
+
+# -------------------------------------------------------------------------- }}}
+# {{{ listRepos
+
+listRepos() {
+  echo "Available repo locations:"
+  grep '^repo_' "$REPO_CONFIG" | sed 's/^repo_//;s/=.*//'
+}
+
+# -------------------------------------------------------------------------- }}}
+# {{{ repo
+
+repo() {
+  local location="$1"
+  local repos_var="repo_${location}"
+
+  if [[ -z "${!repos_var}" ]]; then
+    echo "No repos defined for location: $location"
+    return
+  fi
+
+  local basedir="$HOME/$location"
+  mkdir -p "$basedir"
+
+  for entry in "${!repos_var}"; do
+    local url="${entry%% *}"
+    local alias="${entry##* }"
+    local target_dir="$basedir/$alias"
+
+    if [[ ! -d "$target_dir/.git" ]]; then
+      echo "Cloning $url -> $target_dir"
+      if [[ "$dry_run" = false ]]; then
+        git clone "$url" "$target_dir"
+      fi
+    else
+      echo "Updating $target_dir"
+      if [[ "$do_pull" = true ]]; then
+        (cd "$target_dir" && { [[ "$dry_run" = true ]] || git pull; })
+      fi
+    fi
+  done
+}
+
+# -------------------------------------------------------------------------- }}}
+# {{{ Variables
+
+repo_args=()
+do_pull=false
+dry_run=false
+compact=true
+
+# -------------------------------------------------------------------------- }}}
+# {{{ Parse Arguments
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h)
+      usage
+      ;;
+    -l)
+      listRepos
+      exit 0
+      ;;
+    -r)
+      shift
+      while [[ $# -gt 0 && ! $1 =~ ^- ]]; do
+        repo_args+=("$1")
+        shift
+      done
+      ;;
+    -p)
+      do_pull=true
+      shift
+      ;;
+    -v)
+      compact=false
+      shift
+      ;;
+    -d)
+      dry_run=true
+      shift
+      ;;
+    *)
+      repo_args+=("$1")
+      shift
+      ;;
+  esac
+done
+
+# -------------------------------------------------------------------------- }}}
+# {{{ Main
+
+if [[ ${#repo_args[@]} -eq 0 ]]; then
+  usage
+fi
+
+for location in "${repo_args[@]}"; do
+  repo "$location"
+done
+
+# -------------------------------------------------------------------------- }}}
