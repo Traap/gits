@@ -10,7 +10,5 @@
 
 ## Installation
 ```bash
-git clone https://github.com/Traap/gits.git
-cd gits
-./install.sh
-
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Traap/gits/master/install.sh)"
+````
