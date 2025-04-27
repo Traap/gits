@@ -128,4 +128,53 @@ fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    -h)
+      usage
+      ;;
+    -l)
+      listRepos
+      exit 0
+      ;;
+    -c)
+      subcommand="clone"
+      shift
+      ;;
+    -r|-p)
+      subcommand="pull"
+      shift
+      ;;
+    -d)
+      dry_run=true
+      shift
+      ;;
+    -v)
+      compact=false
+      shift
+      ;;
+    *)
+      repo_args+=("$1")
+      shift
+      ;;
+  esac
+done
 
+# -------------------------------------------------------------------------- }}}
+# {{{ Main
+
+for location in "${repo_args[@]}"; do
+  if [[ "$subcommand" == "clone" ]]; then
+    cloneRepos "$location"
+  elif [[ "$subcommand" == "pull" ]]; then
+    pullRepos "$location"
+  fi
+done
+
+echo
+echo "Summary:"
+echo "  Cloned : $cloned"
+echo "  Updated: $updated"
+echo "  Skipped: $skipped"
+echo
+echo "✅ Done."
+
+# -------------------------------------------------------------------------- }}}
