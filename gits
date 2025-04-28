@@ -53,10 +53,10 @@ fi
 usage() {
   echo
   echo_info "Usage: gits [options] [repo-locations...]"
-  printf '\\n'
+  echo
   echo "Options:"
   echo "  -h          Show help"
-  printf '\\n'
+  echo
   echo "  -c          Clone missing repositories (from bash arrays)"
   echo "  -d          Dry-run (simulate actions)"
   echo "  -l          List repository locations"
@@ -66,7 +66,7 @@ usage() {
   echo "  -U          Convert UTF-16 files to UTF-8 (with -r)"
   echo "  -v          Verbose output"
   echo "  -x          Clean untracked files (with -r)"
-  printf '\\n'
+  echo
   exit 0
 }
 
@@ -74,10 +74,10 @@ usage() {
 # {{{ listRepos
 
 listRepos() {
-  printf '\\n'
+  echo
   echo_info "Available repository locations:"
   grep '^repo_' "$REPO_CONFIG" | sed 's/^repo_//;s/=.*//'
-  printf '\\n'
+  echo
 }
 
 # -------------------------------------------------------------------------- }}}
@@ -292,12 +292,12 @@ minutes=$((elapsed / 60))
 seconds=$((elapsed % 60))
 
 if [[ $clone_mode == true || $pull_mode == true ]]; then
-  printf '\\n'
+  echo
   echo_info "Summary:"
   echo "  ➡️  Cloned : $cloned"
   echo "  ⬆️  Updated: $updated"
   echo "  ⚠️  Skipped: $skipped"
-  printf '\\n'
+  echo
 fi
 
 echo_success "✅ Done."
