@@ -1,5 +1,23 @@
 #!/bin/bash
 # vim: set foldmethod=marker :
+# {{{ Colors and Icons
+
+GREEN="\e[32m"
+YELLOW="\e[33m"
+RED="\e[31m"
+BLUE="\e[34m"
+RESET="\e[0m"
+
+ICON_UPTODATE="✅"
+ICON_PULLING="🔄"
+ICON_STASH="💾"
+ICON_ERROR="❌"
+ICON_FOLDER="📁"
+ICON_TOTAL="📦"
+ICON_TIME="⏱️"
+ICON_DRYRUN="🔎"
+
+# -------------------------------------------------------------------------- }}}
 # {{{ Variables
 
 help=false
