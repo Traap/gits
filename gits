@@ -175,9 +175,9 @@ repoActions() {
     echo "🧹 Cleaning untracked files in $(basename "$dir")"
     if [[ "$dry_run" = false ]]; then
       if [[ "$verbose" = true ]]; then
-        (cd "$dir" && git clean -fdn)
+        (cd "$dir" && git clean -fd)
       else
-        (cd "$dir" && git clean -fd &>/dev/null)
+        (cd "$dir" && git clean -fdq)
       fi
       ((cleaned++))
     fi
@@ -308,7 +308,7 @@ if [[ "$clone_mode" = true || "$pull_mode" = true ]]; then
   echo "  ⚠️  Skipped: $skipped"
   echo "  🧹  Cleaned : $cleaned"
   echo "  🔄  UTF-16→8: $converted"
-  echo "  📦  Stash   : $stashes"
+e echo "  📦  Stash   : $stashes"
 fi
 
 echo
