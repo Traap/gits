@@ -301,6 +301,6 @@ if [[ $clone_mode == true || $pull_mode == true ]]; then
 fi
 
 echo_success "✅ Done."
-echo_info "⏱️  Elapsed time: ${minutes}m ${seconds}s"
+echo_info "⏱️ Elapsed time: ${minutes}m ${seconds}s"
 
 # -------------------------------------------------------------------------- }}}
