@@ -74,8 +74,10 @@ usage() {
 # {{{ listRepos
 
 listRepos() {
+  echo
   echo_info "Available repository locations:"
   grep '^repo_' "$REPO_CONFIG" | sed 's/^repo_//;s/=.*//'
+  echo
 }
 
 # -------------------------------------------------------------------------- }}}
@@ -187,18 +189,19 @@ repoActions() {
 
 repo() {
   local location="$1"
-  local repos_var="repo_${location}"
+  local repos_var_old="repo_${location}"
+  local repos_var_new="repo_${location}[@]"
   local basedir="$HOME/$location"
 
   mkdir -p "$basedir"
 
   if [[ "$clone_mode" = true ]]; then
-    if ! declare -p "$repos_var" &>/dev/null; then
+    if ! declare -p "$repos_var_old" &>/dev/null; then
       echo_error "ERROR: Repository location '$location' is not defined."
       exit 1
     fi
 
-    local repos=("${!repos_var}")
+    local repos=("${!repos_var_new}")
 
     for entry in "${repos[@]}"; do
       local url="${entry%% *}"
