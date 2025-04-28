@@ -19,7 +19,7 @@
 ```
 
 ### Use
-```concole
+```console
 Usage: gits [options] [repo-locations...]
 
 Options:

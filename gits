@@ -1,5 +1,18 @@
 #!/bin/bash
 # vim: set foldmethod=marker :
+# {{{ Icons
+
+ICON_CLONE="➡️"
+ICON_SUCCESS="✅"
+ICON_WARNING="⚠️"
+ICON_PULL="⬆️"
+ICON_STASH="📦"
+ICON_CLEAN="🧹"
+ICON_CONVERT="🔄"
+ICON_DONE="✅"
+ICON_TIME="⏱️"
+
+# -------------------------------------------------------------------------- }}}
 # {{{ Colors and Icons
 
 echo_info()    { echo -e "\\e[34m$1\\e[0m"; }
