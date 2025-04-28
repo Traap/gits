@@ -299,14 +299,17 @@ elapsed=$((end_time - start_time))
 minutes=$((elapsed / 60))
 seconds=$((elapsed % 60))
 
-echo
-echo "Summary:"
-echo "  ➡️  Cloned : $cloned"
-echo "  ⬆️  Updated: $updated"
-echo "  ⚠️  Skipped: $skipped"
-echo "  🧹  Cleaned : $cleaned"
-echo "  🔄  UTF-16→8: $converted"
-echo "  📦  Stash   : $stashes"
+if [[ "$clone_mode" = true || "$pull_mode" = true ]]; then
+  echo
+  echo "Summary:"
+  echo "  ➡️  Cloned : $cloned"
+  echo "  ⬆️  Updated: $updated"
+  echo "  ⚠️  Skipped: $skipped"
+  echo "  🧹  Cleaned : $cleaned"
+  echo "  🔄  UTF-16→8: $converted"
+  echo "  📦  Stash   : $stashes"
+fi
+
 echo
 echo "✅ Done."
 echo "⏱️  Elapsed time: ${minutes}m ${seconds}s"
