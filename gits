@@ -2,13 +2,18 @@
 # vim: set foldmethod=marker :
 # {{{ Variables
 
-subcommand="pull"
-repo_args=()
+help=false
+list=false
+clone_mode=false
+repo_mode=false
+pull_mode=false
 dry_run=false
-compact=true
-clean_untracked=false
-convert_utf16=false
-list_stashes=false
+verbose=false
+clean_mode=false
+utf_mode=false
+stash_list_mode=false
+
+repo_args=()
 
 cloned=0
 updated=0
@@ -44,13 +49,13 @@ usage() {
   echo "  -h          Show help"
   echo "  -l          List repository locations"
   echo "  -c          Clone missing repositories (from bash arrays)"
-  echo "  -r          Pull changes from filesystem repositories"
-  echo "  -p          Alias for -r (pull)"
+  echo "  -r          Operate on filesystem repositories (-x, -U, -s)"
+  echo "  -p          Pull repositories with safe stashing"
   echo "  -d          Dry-run (simulate actions)"
   echo "  -v          Verbose output"
-  echo "  -x          Clean untracked files after pull"
-  echo "  -U          Convert UTF-16 files to UTF-8 after pull"
-  echo "  -s          List repositories with stash entries"
+  echo "  -x          Clean untracked files (with -r)"
+  echo "  -U          Convert UTF-16 files to UTF-8 (with -r)"
+  echo "  -s          List repositories with stash entries (with -r)"
   exit 0
 }
 
@@ -137,30 +142,52 @@ pullRepo() {
     echo "⬆️  Pulling $(basename "$dir")"
 
     if [[ "$dry_run" = false ]]; then
-      local needs_stash=0
+      local dirty=$(cd "$dir" && git status --porcelain)
 
-      (cd "$dir" && git diff --quiet || needs_stash=1)
-
-      if ((needs_stash)); then
+      if [[ -n "$dirty" ]]; then
+        echo "📦 Stashing changes in $(basename "$dir")"
+        if [[ "$verbose" = true ]]; then
+          echo "$dirty"
+        fi
         (cd "$dir" && git stash push -u -m "gits auto-stash" &>/dev/null)
       fi
 
       (cd "$dir" && git pull &>/dev/null)
 
       ((updated++))
-
-      if [[ "$clean_untracked" = true ]]; then
-        (cd "$dir" && git clean -fd &>/dev/null)
-        ((cleaned++))
-      fi
-
-      if [[ "$convert_utf16" = true ]]; then
-        detectUtf16AndConvert "$dir"
-      fi
     fi
   else
     echo "⚠️  Skipping non-repo: $(basename "$dir")"
     ((skipped++))
+  fi
+}
+
+# -------------------------------------------------------------------------- }}}
+# {{{ repoActions
+
+repoActions() {
+  local dir="$1"
+
+  [[ -d "$dir/.git" ]] || return
+
+  if [[ "$clean_mode" = true ]]; then
+    echo "🧹 Cleaning untracked files in $(basename "$dir")"
+    if [[ "$dry_run" = false ]]; then
+      if [[ "$verbose" = true ]]; then
+        (cd "$dir" && git clean -fdn)
+      else
+        (cd "$dir" && git clean -fd &>/dev/null)
+      fi
+      ((cleaned++))
+    fi
+  fi
+
+  if [[ "$utf_mode" = true ]]; then
+    detectUtf16AndConvert "$dir"
+  fi
+
+  if [[ "$stash_list_mode" = true ]]; then
+    checkForStashes "$dir"
   fi
 }
 
@@ -174,34 +201,33 @@ repo() {
 
   mkdir -p "$basedir"
 
-  if [[ "$list_stashes" = true ]]; then
-    for dir in "$basedir"/*; do
-      checkForStashes "$dir"
-    done
-    return
-  fi
-
-  if [[ "$subcommand" == "clone" ]]; then
+  if [[ "$clone_mode" = true ]]; then
     if [[ -n "${!repos_var}" ]]; then
-      for entry in "${repos_var[@]}"; do
+      for entry in "${!repos_var[@]}"; do
         local url="${entry%% *}"
         local alias="${entry##* }"
         local target_dir="$basedir/$alias"
 
         cloneRepo "$url" "$target_dir" &
-
         ((jobcount++))
         waitForJobs
       done
     else
       echo "⚠️  No repositories defined for location: $location"
     fi
-  elif [[ "$subcommand" == "pull" ]]; then
+  elif [[ "$pull_mode" = true ]]; then
     for dir in "$basedir"/*; do
       [[ -d "$dir" ]] || continue
 
       pullRepo "$dir" &
+      ((jobcount++))
+      waitForJobs
+    done
+  elif [[ "$repo_mode" = true ]]; then
+    for dir in "$basedir"/*; do
+      [[ -d "$dir" ]] || continue
 
+      repoActions "$dir" &
       ((jobcount++))
       waitForJobs
     done
@@ -211,54 +237,53 @@ repo() {
 # -------------------------------------------------------------------------- }}}
 # {{{ Parse Arguments
 
-if [[ $# -eq 0 ]]; then
-  usage
-fi
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -h)
-      usage
-      ;;
-    -l)
-      listRepos
-      exit 0
-      ;;
-    -c)
-      subcommand="clone"
-      shift
-      ;;
-    -r|-p)
-      subcommand="pull"
-      shift
-      ;;
-    -d)
-      dry_run=true
-      shift
-      ;;
-    -v)
-      compact=false
-      shift
-      ;;
-    -x)
-      clean_untracked=true
-      shift
-      ;;
-    -U)
-      convert_utf16=true
-      shift
-      ;;
-    -s)
-      list_stashes=true
-      subcommand="pull"
-      shift
-      ;;
+    -h) help=true ;;
+    -l) list=true ;;
+    -c) clone_mode=true ;;
+    -r) repo_mode=true ;;
+    -p) pull_mode=true ;;
+    -d) dry_run=true ;;
+    -v) verbose=true ;;
+    -x) clean_mode=true ;;
+    -U) utf_mode=true ;;
+    -s) stash_list_mode=true ;;
     *)
       repo_args+=("$1")
-      shift
       ;;
   esac
+  shift
 done
+
+# Precedence: help and list first
+if [[ "$help" = true || "$list" = true ]]; then
+  [[ "$help" = true ]] && usage
+  [[ "$list" = true ]] && listRepos
+  exit 0
+fi
+
+# Validate mutually exclusive options
+if [[ "$repo_mode" = true && "$pull_mode" = true ]]; then
+  echo "ERROR: -r and -p are mutually exclusive." >&2
+  exit 1
+fi
+
+# Validate -r usage
+if [[ "$repo_mode" = true ]]; then
+  if [[ "$clean_mode" = false && "$utf_mode" = false && "$stash_list_mode" = false ]]; then
+    echo "ERROR: -r requires at least one of -x, -U, or -s." >&2
+    exit 1
+  fi
+fi
+
+# Validate -p usage
+if [[ "$pull_mode" = true ]]; then
+  if [[ "$clean_mode" = true || "$utf_mode" = true || "$stash_list_mode" = true ]]; then
+    echo "ERROR: -p cannot be combined with -x, -U, or -s." >&2
+    exit 1
+  fi
+fi
 
 # -------------------------------------------------------------------------- }}}
 # {{{ Main
