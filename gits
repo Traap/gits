@@ -2,20 +2,10 @@
 # vim: set foldmethod=marker :
 # {{{ Colors and Icons
 
-GREEN="\e[32m"
-YELLOW="\e[33m"
-RED="\e[31m"
-BLUE="\e[34m"
-RESET="\e[0m"
-
-ICON_UPTODATE="✅"
-ICON_PULLING="🔄"
-ICON_STASH="💾"
-ICON_ERROR="❌"
-ICON_FOLDER="📁"
-ICON_TOTAL="📦"
-ICON_TIME="⏱️"
-ICON_DRYRUN="🔎"
+echo_info()    { echo -e "\e[34m$1\e[0m"; }
+echo_warn()    { echo -e "\e[33m$1\e[0m"; }
+echo_error()   { echo -e "\e[31m$1\e[0m"; }
+echo_success() { echo -e "\e[32m$1\e[0m"; }
 
 # -------------------------------------------------------------------------- }}}
 # {{{ Variables
@@ -53,7 +43,7 @@ REPO_CONFIG="$HOME/.config/gits/repo_locations"
 if [[ -f "$REPO_CONFIG" ]]; then
   source "$REPO_CONFIG"
 else
-  echo "ERROR: repo_locations file not found at $REPO_CONFIG" >&2
+  echo_error "ERROR: repo_locations file not found at $REPO_CONFIG"
   exit 1
 fi
 
@@ -61,20 +51,22 @@ fi
 # {{{ usage
 
 usage() {
-  echo "Usage: gits [options] [repo-locations...]"
+  echo
+  echo_info "Usage: gits [options] [repo-locations...]"
   echo
   echo "Options:"
   echo "  -h          Show help"
   echo
-  echo "  -U          Convert UTF-16 files to UTF-8 (with -r)"
   echo "  -c          Clone missing repositories (from bash arrays)"
   echo "  -d          Dry-run (simulate actions)"
   echo "  -l          List repository locations"
   echo "  -p          Pull repositories with safe stashing"
   echo "  -r          Operate on filesystem repositories (-x, -U, -s)"
   echo "  -s          List repositories with stash entries (with -r)"
+  echo "  -U          Convert UTF-16 files to UTF-8 (with -r)"
   echo "  -v          Verbose output"
   echo "  -x          Clean untracked files (with -r)"
+  echo
   exit 0
 }
 
@@ -82,7 +74,7 @@ usage() {
 # {{{ listRepos
 
 listRepos() {
-  echo "Available repository locations:"
+  echo_info "Available repository locations:"
   grep '^repo_' "$REPO_CONFIG" | sed 's/^repo_//;s/=.*//'
 }
 
@@ -97,38 +89,6 @@ waitForJobs() {
 }
 
 # -------------------------------------------------------------------------- }}}
-# {{{ detectUtf16AndConvert
-
-detectUtf16AndConvert() {
-  local target_dir="$1"
-
-  for file in "$target_dir"/*; do
-    [[ -f "$file" ]] || continue
-    if file "$file" | grep -q 'UTF-16'; then
-      echo "🔄 Converting UTF-16 to UTF-8: $(basename "$file")"
-      if [[ "$dry_run" = false ]]; then
-        iconv -f UTF-16 -t UTF-8 "$file" -o "$file.new" && mv "$file.new" "$file"
-        ((converted++))
-      fi
-    fi
-  done
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ checkForStashes
-
-checkForStashes() {
-  local dir="$1"
-
-  if [[ -d "$dir/.git" ]]; then
-    if (cd "$dir" && git stash list | grep -q .); then
-      echo "📦 Stash found: $(basename "$dir")"
-      ((stashes++))
-    fi
-  fi
-}
-
-# -------------------------------------------------------------------------- }}}
 # {{{ cloneRepo
 
 cloneRepo() {
@@ -136,17 +96,17 @@ cloneRepo() {
   local target_dir="$2"
 
   if [[ ! -d "$target_dir/.git" ]]; then
-    echo "➡️  Cloning $(basename "$target_dir")"
+    echo_info "➡️  Cloning $(basename "$target_dir")"
     if [[ "$dry_run" = false ]]; then
       if git clone "$url" "$target_dir" &>/dev/null; then
-        echo "✅  Cloned: $(basename "$target_dir")"
+        echo_success "✅  Cloned: $(basename "$target_dir")"
         ((cloned++))
       else
-        echo "❌  Failed to clone: $(basename "$target_dir")"
+        echo_error "❌  Failed to clone: $(basename "$target_dir")"
       fi
     fi
   else
-    echo "⚠️  Already exists: $(basename "$target_dir")"
+    echo_warn "⚠️  Already exists: $(basename "$target_dir")"
     ((skipped++))
   fi
 }
@@ -158,13 +118,14 @@ pullRepo() {
   local dir="$1"
 
   if [[ -d "$dir/.git" ]]; then
-    echo "⬆️  Pulling $(basename "$dir")"
+    echo_info "⬆️  Pulling $(basename "$dir")"
 
     if [[ "$dry_run" = false ]]; then
-      local dirty=$(cd "$dir" && git status --porcelain)
+      local dirty
+      dirty=$(cd "$dir" && git status --porcelain)
 
       if [[ -n "$dirty" ]]; then
-        echo "📦 Stashing changes in $(basename "$dir")"
+        echo_info "📦 Stashing changes in $(basename "$dir")"
         if [[ "$verbose" = true ]]; then
           echo "$dirty"
         fi
@@ -176,7 +137,7 @@ pullRepo() {
       ((updated++))
     fi
   else
-    echo "⚠️  Skipping non-repo: $(basename "$dir")"
+    echo_warn "⚠️  Skipping non-repo: $(basename "$dir")"
     ((skipped++))
   fi
 }
@@ -190,23 +151,34 @@ repoActions() {
   [[ -d "$dir/.git" ]] || return
 
   if [[ "$clean_mode" = true ]]; then
-    echo "🧹 Cleaning untracked files in $(basename "$dir")"
-    if [[ "$dry_run" = false ]]; then
-      if [[ "$verbose" = true ]]; then
-        (cd "$dir" && git clean -fd)
-      else
-        (cd "$dir" && git clean -fdq)
-      fi
-      ((cleaned++))
+    if [[ "$verbose" = true ]]; then
+      echo_info "🧹 Cleaning untracked files (verbose): $(basename "$dir")"
+      (cd "$dir" && git clean -fd)
+    else
+      echo_info "🧹 Cleaning untracked files: $(basename "$dir")"
+      (cd "$dir" && git clean -fdq)
     fi
+    ((cleaned++))
   fi
 
   if [[ "$utf_mode" = true ]]; then
-    detectUtf16AndConvert "$dir"
+    for file in "$dir"/*; do
+      [[ -f "$file" ]] || continue
+      if file "$file" | grep -q 'UTF-16'; then
+        echo_info "🔄 Converting UTF-16 to UTF-8: $(basename "$file")"
+        if [[ "$dry_run" = false ]]; then
+          iconv -f UTF-16 -t UTF-8 "$file" -o "$file.new" && mv "$file.new" "$file"
+          ((converted++))
+        fi
+      fi
+    done
   fi
 
   if [[ "$stash_list_mode" = true ]]; then
-    checkForStashes "$dir"
+    if (cd "$dir" && git stash list | grep -q .); then
+      echo_info "📦 Stash found: $(basename "$dir")"
+      ((stashes++))
+    fi
   fi
 }
 
@@ -221,19 +193,22 @@ repo() {
   mkdir -p "$basedir"
 
   if [[ "$clone_mode" = true ]]; then
-    if [[ -n "${!repos_var}" ]]; then
-      for entry in "${!repos_var[@]}"; do
-        local url="${entry%% *}"
-        local alias="${entry##* }"
-        local target_dir="$basedir/$alias"
-
-        cloneRepo "$url" "$target_dir" &
-        ((jobcount++))
-        waitForJobs
-      done
-    else
-      echo "⚠️  No repositories defined for location: $location"
+    if ! declare -p "$repos_var" &>/dev/null; then
+      echo_error "ERROR: Repository location '$location' is not defined."
+      exit 1
     fi
+
+    local repos=("${!repos_var}")
+
+    for entry in "${repos[@]}"; do
+      local url="${entry%% *}"
+      local alias="${entry##* }"
+      local target_dir="$basedir/$alias"
+
+      cloneRepo "$url" "$target_dir" &
+      ((jobcount++))
+      waitForJobs
+    done
   elif [[ "$pull_mode" = true ]]; then
     for dir in "$basedir"/*; do
       [[ -d "$dir" ]] || continue
@@ -275,31 +250,29 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-# Precedence: help and list first
+# Handle help/list first
 if [[ "$help" = true || "$list" = true ]]; then
   [[ "$help" = true ]] && usage
   [[ "$list" = true ]] && listRepos
   exit 0
 fi
 
-# Validate mutually exclusive options
+# Validate exclusivity
 if [[ "$repo_mode" = true && "$pull_mode" = true ]]; then
-  echo "ERROR: -r and -p are mutually exclusive." >&2
+  echo_error "ERROR: -r and -p are mutually exclusive."
   exit 1
 fi
 
-# Validate -r usage
 if [[ "$repo_mode" = true ]]; then
   if [[ "$clean_mode" = false && "$utf_mode" = false && "$stash_list_mode" = false ]]; then
-    echo "ERROR: -r requires at least one of -x, -U, or -s." >&2
+    echo_error "ERROR: -r requires at least one of -x, -U, or -s."
     exit 1
   fi
 fi
 
-# Validate -p usage
 if [[ "$pull_mode" = true ]]; then
   if [[ "$clean_mode" = true || "$utf_mode" = true || "$stash_list_mode" = true ]]; then
-    echo "ERROR: -p cannot be combined with -x, -U, or -s." >&2
+    echo_error "ERROR: -p cannot be combined with -x, -U, or -s."
     exit 1
   fi
 fi
@@ -318,18 +291,17 @@ elapsed=$((end_time - start_time))
 minutes=$((elapsed / 60))
 seconds=$((elapsed % 60))
 
+# Only show summary for clone or pull
 if [[ "$clone_mode" = true || "$pull_mode" = true ]]; then
   echo
-  echo "Summary:"
+  echo_info "Summary:"
   echo "  ➡️  Cloned : $cloned"
   echo "  ⬆️  Updated: $updated"
   echo "  ⚠️  Skipped: $skipped"
-  echo "  🧹  Cleaned : $cleaned"
-  echo "  🔄  UTF-16→8: $converted"
-e echo "  📦  Stash   : $stashes"
+  echo
 fi
 
-echo
-echo "✅ Done."
-echo "⏱️  Elapsed time: ${minutes}m ${seconds}s"
+echo_success "✅ Done."
+echo_info "⏱️  Elapsed time: ${minutes}m ${seconds}s"
+
 # -------------------------------------------------------------------------- }}}
