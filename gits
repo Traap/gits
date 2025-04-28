@@ -47,15 +47,16 @@ usage() {
   echo
   echo "Options:"
   echo "  -h          Show help"
-  echo "  -l          List repository locations"
+  echo
+  echo "  -U          Convert UTF-16 files to UTF-8 (with -r)"
   echo "  -c          Clone missing repositories (from bash arrays)"
-  echo "  -r          Operate on filesystem repositories (-x, -U, -s)"
-  echo "  -p          Pull repositories with safe stashing"
   echo "  -d          Dry-run (simulate actions)"
+  echo "  -l          List repository locations"
+  echo "  -p          Pull repositories with safe stashing"
+  echo "  -r          Operate on filesystem repositories (-x, -U, -s)"
+  echo "  -s          List repositories with stash entries (with -r)"
   echo "  -v          Verbose output"
   echo "  -x          Clean untracked files (with -r)"
-  echo "  -U          Convert UTF-16 files to UTF-8 (with -r)"
-  echo "  -s          List repositories with stash entries (with -r)"
   exit 0
 }
 
@@ -313,5 +314,4 @@ fi
 echo
 echo "✅ Done."
 echo "⏱️  Elapsed time: ${minutes}m ${seconds}s"
-
 # -------------------------------------------------------------------------- }}}
