@@ -2,10 +2,10 @@
 # vim: set foldmethod=marker :
 # {{{ Colors and Icons
 
-echo_info()    { echo -e "\e[34m$1\e[0m"; }
-echo_warn()    { echo -e "\e[33m$1\e[0m"; }
-echo_error()   { echo -e "\e[31m$1\e[0m"; }
-echo_success() { echo -e "\e[32m$1\e[0m"; }
+echo_info()    { echo -e "\\e[34m$1\\e[0m"; }
+echo_warn()    { echo -e "\\e[33m$1\\e[0m"; }
+echo_error()   { echo -e "\\e[31m$1\\e[0m"; }
+echo_success() { echo -e "\\e[32m$1\\e[0m"; }
 
 # -------------------------------------------------------------------------- }}}
 # {{{ Variables
@@ -53,10 +53,10 @@ fi
 usage() {
   echo
   echo_info "Usage: gits [options] [repo-locations...]"
-  echo
+  printf '\\n'
   echo "Options:"
   echo "  -h          Show help"
-  echo
+  printf '\\n'
   echo "  -c          Clone missing repositories (from bash arrays)"
   echo "  -d          Dry-run (simulate actions)"
   echo "  -l          List repository locations"
@@ -66,7 +66,7 @@ usage() {
   echo "  -U          Convert UTF-16 files to UTF-8 (with -r)"
   echo "  -v          Verbose output"
   echo "  -x          Clean untracked files (with -r)"
-  echo
+  printf '\\n'
   exit 0
 }
 
@@ -74,10 +74,10 @@ usage() {
 # {{{ listRepos
 
 listRepos() {
-  echo
+  printf '\\n'
   echo_info "Available repository locations:"
   grep '^repo_' "$REPO_CONFIG" | sed 's/^repo_//;s/=.*//'
-  echo
+  printf '\\n'
 }
 
 # -------------------------------------------------------------------------- }}}
@@ -99,7 +99,7 @@ cloneRepo() {
 
   if [[ ! -d "$target_dir/.git" ]]; then
     echo_info "➡️  Cloning $(basename "$target_dir")"
-    if [[ "$dry_run" = false ]]; then
+    if [[ $dry_run == false ]]; then
       if git clone "$url" "$target_dir" &>/dev/null; then
         echo_success "✅  Cloned: $(basename "$target_dir")"
         ((cloned++))
@@ -122,13 +122,13 @@ pullRepo() {
   if [[ -d "$dir/.git" ]]; then
     echo_info "⬆️  Pulling $(basename "$dir")"
 
-    if [[ "$dry_run" = false ]]; then
+    if [[ $dry_run == false ]]; then
       local dirty
       dirty=$(cd "$dir" && git status --porcelain)
 
       if [[ -n "$dirty" ]]; then
         echo_info "📦 Stashing changes in $(basename "$dir")"
-        if [[ "$verbose" = true ]]; then
+        if [[ $verbose == true ]]; then
           echo "$dirty"
         fi
         (cd "$dir" && git stash push -u -m "gits auto-stash" &>/dev/null)
@@ -149,26 +149,24 @@ pullRepo() {
 
 repoActions() {
   local dir="$1"
-
   [[ -d "$dir/.git" ]] || return
 
-  if [[ "$clean_mode" = true ]]; then
-    if [[ "$verbose" = true ]]; then
-      echo_info "🧹 Cleaning untracked files (verbose): $(basename "$dir")"
+  if [[ $clean_mode == true ]]; then
+    echo_info "🧹 Cleaning untracked files: $(basename "$dir")"
+    if [[ $verbose == true ]]; then
       (cd "$dir" && git clean -fd)
     else
-      echo_info "🧹 Cleaning untracked files: $(basename "$dir")"
       (cd "$dir" && git clean -fdq)
     fi
     ((cleaned++))
   fi
 
-  if [[ "$utf_mode" = true ]]; then
+  if [[ $utf_mode == true ]]; then
     for file in "$dir"/*; do
       [[ -f "$file" ]] || continue
       if file "$file" | grep -q 'UTF-16'; then
         echo_info "🔄 Converting UTF-16 to UTF-8: $(basename "$file")"
-        if [[ "$dry_run" = false ]]; then
+        if [[ $dry_run == false ]]; then
           iconv -f UTF-16 -t UTF-8 "$file" -o "$file.new" && mv "$file.new" "$file"
           ((converted++))
         fi
@@ -176,7 +174,7 @@ repoActions() {
     done
   fi
 
-  if [[ "$stash_list_mode" = true ]]; then
+  if [[ $stash_list_mode == true ]]; then
     if (cd "$dir" && git stash list | grep -q .); then
       echo_info "📦 Stash found: $(basename "$dir")"
       ((stashes++))
@@ -189,14 +187,14 @@ repoActions() {
 
 repo() {
   local location="$1"
-  local repos_var_old="repo_${location}"
+  local repos_location_check="repo_${location}"
   local repos_var_new="repo_${location}[@]"
   local basedir="$HOME/$location"
 
   mkdir -p "$basedir"
 
-  if [[ "$clone_mode" = true ]]; then
-    if ! declare -p "$repos_var_old" &>/dev/null; then
+  if [[ $clone_mode == true ]]; then
+    if ! declare -p "$repos_location_check" &>/dev/null; then
       echo_error "ERROR: Repository location '$location' is not defined."
       exit 1
     fi
@@ -212,7 +210,8 @@ repo() {
       ((jobcount++))
       waitForJobs
     done
-  elif [[ "$pull_mode" = true ]]; then
+
+  elif [[ $pull_mode == true ]]; then
     for dir in "$basedir"/*; do
       [[ -d "$dir" ]] || continue
 
@@ -220,7 +219,8 @@ repo() {
       ((jobcount++))
       waitForJobs
     done
-  elif [[ "$repo_mode" = true ]]; then
+
+  elif [[ $repo_mode == true ]]; then
     for dir in "$basedir"/*; do
       [[ -d "$dir" ]] || continue
 
@@ -236,45 +236,42 @@ repo() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    -c) clone_mode=true ;;
+    -d) dry_run=true ;;
     -h) help=true ;;
     -l) list=true ;;
-    -c) clone_mode=true ;;
-    -r) repo_mode=true ;;
     -p) pull_mode=true ;;
-    -d) dry_run=true ;;
+    -r) repo_mode=true ;;
+    -s) stash_list_mode=true ;;
+    -U) utf_mode=true ;;
     -v) verbose=true ;;
     -x) clean_mode=true ;;
-    -U) utf_mode=true ;;
-    -s) stash_list_mode=true ;;
-    *)
-      repo_args+=("$1")
-      ;;
+    *) repo_args+=("$1") ;;
   esac
   shift
 done
 
-# Handle help/list first
-if [[ "$help" = true || "$list" = true ]]; then
-  [[ "$help" = true ]] && usage
-  [[ "$list" = true ]] && listRepos
+if [[ $help == true || $list == true ]]; then
+  [[ $help == true ]] && usage
+  [[ $list == true ]] && listRepos
   exit 0
 fi
 
 # Validate exclusivity
-if [[ "$repo_mode" = true && "$pull_mode" = true ]]; then
+if [[ $repo_mode == true && $pull_mode == true ]]; then
   echo_error "ERROR: -r and -p are mutually exclusive."
   exit 1
 fi
 
-if [[ "$repo_mode" = true ]]; then
-  if [[ "$clean_mode" = false && "$utf_mode" = false && "$stash_list_mode" = false ]]; then
+if [[ $repo_mode == true ]]; then
+  if [[ $clean_mode == false && $utf_mode == false && $stash_list_mode == false ]]; then
     echo_error "ERROR: -r requires at least one of -x, -U, or -s."
     exit 1
   fi
 fi
 
-if [[ "$pull_mode" = true ]]; then
-  if [[ "$clean_mode" = true || "$utf_mode" = true || "$stash_list_mode" = true ]]; then
+if [[ $pull_mode == true ]]; then
+  if [[ $clean_mode == true || $utf_mode == true || $stash_list_mode == true ]]; then
     echo_error "ERROR: -p cannot be combined with -x, -U, or -s."
     exit 1
   fi
@@ -294,14 +291,13 @@ elapsed=$((end_time - start_time))
 minutes=$((elapsed / 60))
 seconds=$((elapsed % 60))
 
-# Only show summary for clone or pull
-if [[ "$clone_mode" = true || "$pull_mode" = true ]]; then
-  echo
+if [[ $clone_mode == true || $pull_mode == true ]]; then
+  printf '\\n'
   echo_info "Summary:"
   echo "  ➡️  Cloned : $cloned"
   echo "  ⬆️  Updated: $updated"
   echo "  ⚠️  Skipped: $skipped"
-  echo
+  printf '\\n'
 fi
 
 echo_success "✅ Done."
