@@ -188,8 +188,14 @@ repoActions() {
   fi
 
   if [[ $stash_list_mode == true ]]; then
-    if (cd "$dir" && git stash list | grep -q .); then
-      echo_info "📦 Stash found: $(basename "$dir")"
+    local cmd;
+    if [[ $verbose == true ]]; then
+      cmd="git status --short && git stash list"
+    else
+      cmd="git status --short && git stash list | grep -q ."
+    fi
+    if (cd "$dir" && eval "$cmd"); then
+      echo_info "📦 Change found: $(basename "$dir")"
       ((stashes++))
     fi
   fi
