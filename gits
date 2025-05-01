@@ -188,15 +188,20 @@ repoActions() {
   fi
 
   if [[ $stash_list_mode == true ]]; then
-    local cmd;
+    local cmdVerbose="git status -s -u && git stash list"
+    local cmdSilent="(git status -s -u && git stash list) | grep -q ."
     if [[ $verbose == true ]]; then
-      cmd="git status --short && git stash list"
+      if (cd "$dir" && eval "$cmdSilent"); then
+        echo_info "📦 Change found: $(basename "$dir")"
+        # Run verbose command to list changes.
+        (cd "$dir" && eval "$cmdVerbose")
+        ((stashes++))
+      fi
     else
-      cmd="git status --short && git stash list | grep -q ."
-    fi
-    if (cd "$dir" && eval "$cmd"); then
-      echo_info "📦 Change found: $(basename "$dir")"
-      ((stashes++))
+      if (cd "$dir" && eval "$cmdSilent"); then
+        echo_info "📦 Change found: $(basename "$dir")"
+        ((stashes++))
+      fi
     fi
   fi
 }
