@@ -281,12 +281,19 @@ if [[ $help == true || $list == true ]]; then
   exit 0
 fi
 
-# Validate exclusivity
-if [[ $repo_mode == true && $pull_mode == true ]]; then
-  echo_error "ERROR: -r and -p are mutually exclusive."
+# Repo location is mandatory.
+if [[ $repo_mode == false ]]; then
+  echo_error "ERROR: -r repo-location is mandatory."
   exit 1
 fi
 
+# Validate exclusivity
+if [[ $clone_mode == true && $pull_mode == true ]]; then
+  echo_error "ERROR: -c and -p are mutually exclusive."
+  exit 1
+fi
+
+# Process clean, UTF, or
 if [[ $repo_mode == true ]]; then
   if [[ $clean_mode == false && $utf_mode == false && $stash_list_mode == false ]]; then
     echo_error "ERROR: -r requires at least one of -x, -U, or -s."
