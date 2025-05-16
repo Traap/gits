@@ -1,19 +1,56 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # vim: set foldmethod=marker :
-# {{{ Icons
+# {{{ Define global Variables
 
-ICON_CLONE="➡️"
-ICON_SUCCESS="✅"
-ICON_WARNING="⚠️"
-ICON_PULL="⬆️"
-ICON_STASH="📦"
-ICON_CLEAN="🧹"
-ICON_CONVERT="🔄"
-ICON_DONE="✅"
-ICON_TIME="⏱️"
+defineVariables() {
+  # Locaion of repositories to manage.
+  REPO_CONFIG="$HOME/.config/gits/repo_locations"
+
+  # Repositories defefined in REPO_CONFIG
+  repo_args=()
+
+  # Command line flags.
+  help=false
+  list=false
+  clone_mode=false
+  repo_mode=false
+  pull_mode=false
+  dry_run=false
+  verbose=false
+  clean_mode=false
+  utf_mode=false
+  stash_list_mode=false
+
+  # Parallel job counters.
+  max_jobs=4
+  jobcount=0
+
+  # Count of work done.
+  cloned=0
+  updated=0
+  skipped=0
+  cleaned=0
+  converted=0
+  stashes=0
+}
 
 # -------------------------------------------------------------------------- }}}
-# {{{ Colors and Icons
+# {{{ Define Icons
+
+defineIcons() {
+  ICON_CLONE="➡️"
+  ICON_SUCCESS="✅"
+  ICON_WARNING="⚠️"
+  ICON_PULL="⬆️"
+  ICON_STASH="📦"
+  ICON_CLEAN="🧹"
+  ICON_CONVERT="🔄"
+  ICON_DONE="✅"
+  ICON_TIME="⏱️"
+}
+
+# -------------------------------------------------------------------------- }}}
+# {{{ Colors and Icons helper functions.
 
 echo_info()    { echo -e "\\e[34m$1\\e[0m"; }
 echo_warn()    { echo -e "\\e[33m$1\\e[0m"; }
@@ -21,44 +58,50 @@ echo_error()   { echo -e "\\e[31m$1\\e[0m"; }
 echo_success() { echo -e "\\e[32m$1\\e[0m"; }
 
 # -------------------------------------------------------------------------- }}}
-# {{{ Variables
+# {{{ Start Timer
 
-help=false
-list=false
-clone_mode=false
-repo_mode=false
-pull_mode=false
-dry_run=false
-verbose=false
-clean_mode=false
-utf_mode=false
-stash_list_mode=false
+startTimer() {
+  start_time=$(date +%s)
+}
 
-repo_args=()
+# -------------------------------------------------------------------------- }}}
+# {{{ End timer
 
-cloned=0
-updated=0
-skipped=0
-cleaned=0
-converted=0
-stashes=0
+endTimer() {
+  end_time=$(date +%s)
+  elapsed=$((end_time - start_time))
+  minutes=$((elapsed / 60))
+  seconds=$((elapsed % 60))
+}
 
-max_jobs=4
-jobcount=0
+# -------------------------------------------------------------------------- }}}
+# {{{ Report final Status
 
-start_time=$(date +%s)
+reportStatus() {
+  if [[ $clone_mode == true || $pull_mode == true ]]; then
+    echo
+    echo_info "Summary:"
+    echo "  ➡️  Cloned : $cloned"
+    echo "  ⬆️  Updated: $updated"
+    echo "  ⚠️  Skipped: $skipped"
+    echo
+  fi
+
+  echo_success "✅ Done."
+  echo_info "⏱️ Elapsed time: ${minutes}m ${seconds}s"
+}
 
 # -------------------------------------------------------------------------- }}}
 # {{{ Load Config
 
-REPO_CONFIG="$HOME/.config/gits/repo_locations"
-
-if [[ -f "$REPO_CONFIG" ]]; then
-  source "$REPO_CONFIG"
-else
-  echo_error "ERROR: repo_locations file not found at $REPO_CONFIG"
-  exit 1
-fi
+loadConfiguration() {
+  if [[ -f "$REPO_CONFIG" ]]; then
+    source "$REPO_CONFIG"
+  else
+    echo_error "ERROR: repo_locations file not found at $REPO_CONFIG"
+    exit 1
+  fi
+}
 
 # -------------------------------------------------------------------------- }}}
 # {{{ usage
@@ -258,80 +301,98 @@ repo() {
 # -------------------------------------------------------------------------- }}}
 # {{{ Parse Arguments
 
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    -c) clone_mode=true ;;
-    -d) dry_run=true ;;
-    -h) help=true ;;
-    -l) list=true ;;
-    -p) pull_mode=true ;;
-    -r) repo_mode=true ;;
-    -s) stash_list_mode=true ;;
-    -U) utf_mode=true ;;
-    -v) verbose=true ;;
-    -x) clean_mode=true ;;
-    *) repo_args+=("$1") ;;
-  esac
-  shift
-done
+parseArguments() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -c) clone_mode=true ;;
+      -d) dry_run=true ;;
+      -h) help=true ;;
+      -l) list=true ;;
+      -p) pull_mode=true ;;
+      -r) repo_mode=true ;;
+      -s) stash_list_mode=true ;;
+      -U) utf_mode=true ;;
+      -v) verbose=true ;;
+      -x) clean_mode=true ;;
+      *) repo_args+=("$1") ;;
+    esac
+    shift
+  done
 
-if [[ $help == true || $list == true ]]; then
-  [[ $help == true ]] && usage
-  [[ $list == true ]] && listRepos
-  exit 0
-fi
+  if [[ $help == true || $list == true ]]; then
+    [[ $help == true ]] && usage
+    [[ $list == true ]] && listRepos
+    exit 0
+  fi
 
-# Repo location is mandatory.
-if [[ $repo_mode == false ]]; then
-  echo_error "ERROR: -r repo-location is mandatory."
-  exit 1
-fi
-
-# Validate exclusivity
-if [[ $clone_mode == true && $pull_mode == true ]]; then
-  echo_error "ERROR: -c and -p are mutually exclusive."
-  exit 1
-fi
-
-# Process clean, UTF, or
-if [[ $repo_mode == true ]]; then
-  if [[ $clean_mode == false && $utf_mode == false && $stash_list_mode == false ]]; then
-    echo_error "ERROR: -r requires at least one of -x, -U, or -s."
+  # Repo location is mandatory.
+  if [[ $repo_mode == false ]]; then
+    echo_error "ERROR: -r repo-location is mandatory."
     exit 1
   fi
-fi
 
-if [[ $pull_mode == true ]]; then
-  if [[ $clean_mode == true || $utf_mode == true || $stash_list_mode == true ]]; then
-    echo_error "ERROR: -p cannot be combined with -x, -U, or -s."
+  # Validate exclusivity
+  if [[ $clone_mode == true && $pull_mode == true ]]; then
+    echo_error "ERROR: -c and -p are mutually exclusive."
     exit 1
   fi
-fi
+
+  # Clone mode
+  if [[ $clone_mode == true ]]; then
+    if [[ $clean_mode == true || $utf_mode == true || $stash_list_mode == true ]]; then
+      echo_error "ERROR: -c cannot be combined with -x, -U, or -s."
+      exit 1
+    fi
+  fi
+
+  # Pull mode
+  if [[ $pull_mode == true ]]; then
+    if [[ $clean_mode == true || $utf_mode == true || $stash_list_mode == true ]]; then
+      echo_error "ERROR: -p cannot be combined with -x, -U, or -s."
+      exit 1
+    fi
+  fi
+
+  # Process clean, UTF, or
+  if [[ $repo_mode == true ]]; then
+    if [[ ($clean_mode == true || $utf_mode == true || $stash_list_mode == true) \
+       && ($clone_mode == true || $pull_mode == true) ]]; then
+      echo_error "ERROR: -c or -p cannot be combined with -x, -U, or -s."
+      exit 1
+    fi
+  fi
+
+}
 
 # -------------------------------------------------------------------------- }}}
 # {{{ Main
 
-for location in "${repo_args[@]}"; do
-  repo "$location"
-done
+main() {
+  # Time all activities.
+  startTimer
 
-wait
+  # Setup activities.
+  defineVariables
+  defineIcons
+  loadConfiguration
 
-end_time=$(date +%s)
-elapsed=$((end_time - start_time))
-minutes=$((elapsed / 60))
-seconds=$((elapsed % 60))
+  # Validate user request.
+  parseArguments "$@"
 
-if [[ $clone_mode == true || $pull_mode == true ]]; then
-  echo
-  echo_info "Summary:"
-  echo "  ➡️  Cloned : $cloned"
-  echo "  ⬆️  Updated: $updated"
-  echo "  ⚠️  Skipped: $skipped"
-  echo
-fi
+  # Process user requests.
+  for location in "${repo_args[@]}"; do
+    repo "$location"
+  done
 
-echo_success "✅ Done."
-echo_info "⏱️ Elapsed time: ${minutes}m ${seconds}s"
+  # Wait for all jobs to complete.
+  wait
+
+  # Calculate elapsed time.
+  endTimer
+
+  # Report final status.
+  reportStatus
+}
 
 # -------------------------------------------------------------------------- }}}
+main "$@"
