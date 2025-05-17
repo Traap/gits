@@ -8,10 +8,12 @@ defineVariables() {
 
   # Repositories defefined in REPO_CONFIG
   repo_args=()
+  repo_location_names=()
 
   # Command line flags.
   help=false
   list=false
+  all_mode=false
   clone_mode=false
   repo_mode=false
   pull_mode=false
@@ -38,15 +40,16 @@ defineVariables() {
 # {{{ Define Icons
 
 defineIcons() {
-  ICON_CLONE="➡️"
-  ICON_SUCCESS="✅"
-  ICON_WARNING="⚠️"
-  ICON_PULL="⬆️"
-  ICON_STASH="📦"
   ICON_CLEAN="🧹"
+  ICON_CLONE="➡️"
   ICON_CONVERT="🔄"
   ICON_DONE="✅"
+  ICON_ERROR="❌"
+  ICON_PULL="⬆️"
+  ICON_STASH="📦"
+  ICON_SUCCESS="✅"
   ICON_TIME="⏱️"
+  ICON_WARNING="⚠️"
 }
 
 # -------------------------------------------------------------------------- }}}
@@ -81,14 +84,14 @@ reportStatus() {
   if [[ $clone_mode == true || $pull_mode == true ]]; then
     echo
     echo_info "Summary:"
-    echo "  ➡️  Cloned : $cloned"
-    echo "  ⬆️  Updated: $updated"
-    echo "  ⚠️  Skipped: $skipped"
+    echo "$ICON_CLONE Cloned : $cloned"
+    echo "$ICON_PULL Updated: $updated"
+    echo "$ICON_WARNING Skipped: $skipped"
     echo
   fi
 
-  echo_success "✅ Done."
-  echo_info "⏱️ Elapsed time: ${minutes}m ${seconds}s"
+  echo_success "$ICON_DONE Done."
+  echo_info "$ICON_TIME Elapsed time: ${minutes}m ${seconds}s"
 }
 
 # -------------------------------------------------------------------------- }}}
@@ -104,7 +107,14 @@ loadConfiguration() {
 }
 
 # -------------------------------------------------------------------------- }}}
-# {{{ usage
+# {{{ Extract Repository Location Names
+
+extractRepoLocationNames() {
+  mapfile -t repo_location_names < <(grep '^repo_' "$REPO_CONFIG" | sed 's/^repo_//;s/=.*//')
+}
+
+# -------------------------------------------------------------------------- }}}
+# {{{ Display usage
 
 usage() {
   echo
@@ -112,190 +122,25 @@ usage() {
   echo
   echo "Options:"
   echo "  -h          Show help"
-  echo
-  echo "  -c          Clone missing repositories (from bash arrays)"
-  echo "  -d          Dry-run (simulate actions)"
   echo "  -l          List repository locations"
-  echo "  -p          Pull repositories with safe stashing"
-  echo "  -r          Operate on filesystem repositories (-x, -U, -s)"
-  echo "  -s          List repositories with stash entries (with -r)"
+  echo "  -R          Apply actions and mutually exclusive actions to all repository locations."
+  echo
+  echo "Actions"
+  echo "  -r          Operate on filesystem repositories"
+  echo "  Modifiers"
   echo "  -U          Convert UTF-16 files to UTF-8 (with -r)"
-  echo "  -v          Verbose output"
+  echo "  -s          List repositories with stash entries (with -r)"
+  echo "  -v          Verbose output (with -c or -p)"
   echo "  -x          Clean untracked files (with -r)"
   echo
-  exit 0
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ listRepos
-
-listRepos() {
+  echo "Mutually exclusive actions"
+  echo "  -c          Clone missing repositories (from bash arrays)"
+  echo "  -p          Pull repositories with safe stashing"
   echo
-  echo_info "Available repository locations:"
-  grep '^repo_' "$REPO_CONFIG" | sed 's/^repo_//;s/=.*//'
-  echo
-}
+  echo "Dry-run"
+  echo "  -d          Dry-run (simulate actions)"
 
-# -------------------------------------------------------------------------- }}}
-# {{{ waitForJobs
 
-waitForJobs() {
-  while (( jobcount >= max_jobs )); do
-    wait -n
-    ((jobcount--))
-  done
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ cloneRepo
-
-cloneRepo() {
-  local url="$1"
-  local target_dir="$2"
-
-  if [[ ! -d "$target_dir/.git" ]]; then
-    echo_info "➡️  Cloning $(basename "$target_dir")"
-    if [[ $dry_run == false ]]; then
-      if git clone "$url" "$target_dir" &>/dev/null; then
-        echo_success "✅  Cloned: $(basename "$target_dir")"
-        ((cloned++))
-      else
-        echo_error "❌  Failed to clone: $(basename "$target_dir")"
-      fi
-    fi
-  else
-    echo_warn "⚠️  Already exists: $(basename "$target_dir")"
-    ((skipped++))
-  fi
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ pullRepo
-
-pullRepo() {
-  local dir="$1"
-
-  if [[ -d "$dir/.git" ]]; then
-    echo_info "⬆️  Pulling $(basename "$dir")"
-
-    if [[ $dry_run == false ]]; then
-      local dirty
-      dirty=$(cd "$dir" && git status --porcelain)
-
-      if [[ -n "$dirty" ]]; then
-        echo_info "📦 Stashing changes in $(basename "$dir")"
-        if [[ $verbose == true ]]; then
-          echo "$dirty"
-        fi
-        (cd "$dir" && git stash push -u -m "gits auto-stash" &>/dev/null)
-      fi
-
-      (cd "$dir" && git pull &>/dev/null)
-
-      ((updated++))
-    fi
-  else
-    echo_warn "⚠️  Skipping non-repo: $(basename "$dir")"
-    ((skipped++))
-  fi
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ repoActions
-
-repoActions() {
-  local dir="$1"
-  [[ -d "$dir/.git" ]] || return
-
-  if [[ $clean_mode == true ]]; then
-    echo_info "🧹 Cleaning untracked files: $(basename "$dir")"
-    if [[ $verbose == true ]]; then
-      (cd "$dir" && git clean -fd)
-    else
-      (cd "$dir" && git clean -fdq)
-    fi
-    ((cleaned++))
-  fi
-
-  if [[ $utf_mode == true ]]; then
-    for file in "$dir"/*; do
-      [[ -f "$file" ]] || continue
-      if file "$file" | grep -q 'UTF-16'; then
-        echo_info "🔄 Converting UTF-16 to UTF-8: $(basename "$file")"
-        if [[ $dry_run == false ]]; then
-          iconv -f UTF-16 -t UTF-8 "$file" -o "$file.new" && mv "$file.new" "$file"
-          ((converted++))
-        fi
-      fi
-    done
-  fi
-
-  if [[ $stash_list_mode == true ]]; then
-    local cmdVerbose="git status -s -u && git stash list"
-    local cmdSilent="(git status -s -u && git stash list) | grep -q ."
-    if [[ $verbose == true ]]; then
-      if (cd "$dir" && eval "$cmdSilent"); then
-        echo_info "📦 Change found: $(basename "$dir")"
-        # Run verbose command to list changes.
-        (cd "$dir" && eval "$cmdVerbose")
-        ((stashes++))
-      fi
-    else
-      if (cd "$dir" && eval "$cmdSilent"); then
-        echo_info "📦 Change found: $(basename "$dir")"
-        ((stashes++))
-      fi
-    fi
-  fi
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ repo
-
-repo() {
-  local location="$1"
-  local repos_location_check="repo_${location}"
-  local repos_var_new="repo_${location}[@]"
-  local basedir="$HOME/$location"
-
-  mkdir -p "$basedir"
-
-  if [[ $clone_mode == true ]]; then
-    if ! declare -p "$repos_location_check" &>/dev/null; then
-      echo_error "ERROR: Repository location '$location' is not defined."
-      exit 1
-    fi
-
-    local repos=("${!repos_var_new}")
-
-    for entry in "${repos[@]}"; do
-      local url="${entry%% *}"
-      local alias="${entry##* }"
-      local target_dir="$basedir/$alias"
-
-      cloneRepo "$url" "$target_dir" &
-      ((jobcount++))
-      waitForJobs
-    done
-
-  elif [[ $pull_mode == true ]]; then
-    for dir in "$basedir"/*; do
-      [[ -d "$dir" ]] || continue
-
-      pullRepo "$dir" &
-      ((jobcount++))
-      waitForJobs
-    done
-
-  elif [[ $repo_mode == true ]]; then
-    for dir in "$basedir"/*; do
-      [[ -d "$dir" ]] || continue
-
-      repoActions "$dir" &
-      ((jobcount++))
-      waitForJobs
-    done
-  fi
 }
 
 # -------------------------------------------------------------------------- }}}
@@ -310,6 +155,7 @@ parseArguments() {
       -l) list=true ;;
       -p) pull_mode=true ;;
       -r) repo_mode=true ;;
+      -R) all_mode=true ;;
       -s) stash_list_mode=true ;;
       -U) utf_mode=true ;;
       -v) verbose=true ;;
@@ -321,13 +167,13 @@ parseArguments() {
 
   if [[ $help == true || $list == true ]]; then
     [[ $help == true ]] && usage
-    [[ $list == true ]] && listRepos
+    [[ $list == true ]] && listRepositoryLocations
     exit 0
   fi
 
   # Repo location is mandatory.
-  if [[ $repo_mode == false ]]; then
-    echo_error "ERROR: -r repo-location is mandatory."
+  if [[ $repo_mode == false && $all_mode == false ]]; then
+    echo_error "ERROR: -r repo-location or -R is mandatory."
     exit 1
   fi
 
@@ -365,6 +211,184 @@ parseArguments() {
 }
 
 # -------------------------------------------------------------------------- }}}
+# {{{ List Repository Locations
+
+listRepositoryLocations() {
+  echo
+  echo_info "Available repository locations:"
+  for rln in "${repo_location_names[@]}"; do
+    echo "$rln"
+  done
+  echo
+}
+
+# -------------------------------------------------------------------------- }}}
+# {{{ Wait for job to finish.
+
+waitForJobs() {
+  while (( jobcount >= max_jobs )); do
+    wait -n
+    ((jobcount--))
+  done
+}
+
+# -------------------------------------------------------------------------- }}}
+# {{{ Clone Repository
+
+cloneRepository() {
+  local url="$1"
+  local target_dir="$2"
+
+  if [[ ! -d "$target_dir/.git" ]]; then
+    echo_info "$ICON_CLONE Cloning $(basename "$target_dir")"
+    if [[ $dry_run == false ]]; then
+      if git clone "$url" "$target_dir" &>/dev/null; then
+        ((cloned++))
+        echo_success "$ICON_SUCCESS Cloned: $(basename "$target_dir")"
+      else
+        echo_error "$ICON_ERROR Failed to clone: $(basename "$target_dir")"
+      fi
+    fi
+  else
+    echo_warn "$ICON_WARNING Already exists: $(basename "$target_dir")"
+    ((skipped++))
+  fi
+}
+
+# -------------------------------------------------------------------------- }}}
+# {{{ Pull Repository
+
+pullRepository() {
+  local dir="$1"
+
+  if [[ -d "$dir/.git" ]]; then
+    echo_info "$ICON_PULL Pulling $(basename "$dir")"
+
+    if [[ $dry_run == false ]]; then
+      local dirty
+      dirty=$(cd "$dir" && git status --porcelain)
+
+      if [[ -n "$dirty" ]]; then
+        echo_info "$ICON_STASH Stashing changes in $(basename "$dir")"
+        if [[ $verbose == true ]]; then
+          echo "$dirty"
+        fi
+        (cd "$dir" && git stash push -u -m "gits auto-stash" &>/dev/null)
+      fi
+
+      (cd "$dir" && git pull &>/dev/null)
+
+      ((updated++))
+    fi
+  else
+    echo_warn "$ICON_WARNING Skipping non-repo: $(basename "$dir")"
+    ((skipped++))
+  fi
+}
+
+# -------------------------------------------------------------------------- }}}
+# {{{ Process Repository
+
+processRepository() {
+  local location="$1"
+  local repo_location_check="repo_${location}"
+  local repos_location_name="repo_${location}[@]"
+  local basedir="$HOME/$location"
+
+  mkdir -p "$basedir"
+
+  # Clone repositories.
+  if [[ $clone_mode == true ]]; then
+    if ! declare -p "$repo_location_check" &>/dev/null; then
+      echo_error "ERROR: Repository location '$location' is not defined."
+      exit 1
+    fi
+
+    # Repos referenced by repos_location_name.
+    local repos=("${!repos_location_name}")
+
+    for entry in "${repos[@]}"; do
+      local url="${entry%% *}"
+      local alias="${entry##* }"
+      local target_dir="$basedir/$alias"
+
+      cloneRepository "$url" "$target_dir" &
+      waitForJobs
+      ((jobcount++))
+    done
+
+  # Pull repositories.
+  elif [[ $pull_mode == true ]]; then
+    for dir in "$basedir"/*; do
+      [[ -d "$dir" ]] || continue
+
+      pullRepository "$dir" &
+      waitForJobs
+      ((jobcount++))
+    done
+
+  # Other repository actions.
+  elif [[ $repo_mode == true ]]; then
+    for dir in "$basedir"/*; do
+      [[ -d "$dir" ]] || continue
+
+      processRepositoryActions "$dir" &
+      waitForJobs
+      ((jobcount++))
+    done
+  fi
+}
+
+# -------------------------------------------------------------------------- }}}
+# {{{ Process Repository Actions
+
+processRepositoryActions() {
+  local dir="$1"
+  [[ -d "$dir/.git" ]] || return
+
+  if [[ $clean_mode == true ]]; then
+    echo_info "$ICON_CLEAN Cleaning untracked files: $(basename "$dir")"
+    if [[ $verbose == true ]]; then
+      (cd "$dir" && git clean -fd)
+    else
+      (cd "$dir" && git clean -fdq)
+    fi
+    ((cleaned++))
+  fi
+
+  if [[ $utf_mode == true ]]; then
+    for file in "$dir"/*; do
+      [[ -f "$file" ]] || continue
+      if file "$file" | grep -q 'UTF-16'; then
+        echo_info "$ICON_CONVERT Converting UTF-16 to UTF-8: $(basename "$file")"
+        if [[ $dry_run == false ]]; then
+          iconv -f UTF-16 -t UTF-8 "$file" -o "$file.new" && mv "$file.new" "$file"
+          ((converted++))
+        fi
+      fi
+    done
+  fi
+
+  if [[ $stash_list_mode == true ]]; then
+    local cmdVerbose="git status -s -u && git stash list"
+    local cmdSilent="(git status -s -u && git stash list) | grep -q ."
+    if [[ $verbose == true ]]; then
+      if (cd "$dir" && eval "$cmdSilent"); then
+        echo_info "$ICON_STASH Change found: $(basename "$dir")"
+        # Run verbose command to list changes.
+        (cd "$dir" && eval "$cmdVerbose")
+        ((stashes++))
+      fi
+    else
+      if (cd "$dir" && eval "$cmdSilent"); then
+        echo_info "$ICON_STASH Change found: $(basename "$dir")"
+        ((stashes++))
+      fi
+    fi
+  fi
+}
+
+# -------------------------------------------------------------------------- }}}
 # {{{ Main
 
 main() {
@@ -375,14 +399,24 @@ main() {
   defineVariables
   defineIcons
   loadConfiguration
+  extractRepoLocationNames
 
   # Validate user request.
   parseArguments "$@"
 
   # Process user requests.
-  for location in "${repo_args[@]}"; do
-    repo "$location"
-  done
+  if [[ $all_mode == false ]]; then
+    for location in "${repo_args[@]}"; do
+      processRepository "$location"
+    done
+  else
+    for rln in "${repo_location_names[@]}"; do
+      repo_args+=("$rln")
+      for location in "${repo_args[@]}"; do
+        processRepository "$location"
+      done
+    done
+  fi
 
   # Wait for all jobs to complete.
   wait
