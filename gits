@@ -120,17 +120,17 @@ extractRepoLocationNames() {
 
 usage() {
   echo
-  echo_info "Usage: gits [options] [repo-locations...]"
+  echo_info "Usage: gits [-h -l -R] [-r name -d -s -u -v -x] [-c | -p] [-n]"
   echo
   echo "Options:"
   echo "  -h          Show help"
   echo "  -l          List repository locations"
-  echo "  -R          Apply actions and mutually exclusive actions to all repository locations."
+  echo "  -R          Apply modifiers to repository locations"
   echo
-  echo "Actions"
-  echo "  -r          Repository location
-  echo "  Modifiers"
-  echo "  -d          Delete repository location
+  echo "Repository Locations"
+  echo "  -r name "
+  echo "Modifiers"
+  echo "  -d          Delete repository location"
   echo "  -s          List repositories with stash entries"
   echo "  -u          Convert UTF-16 files to UTF-8"
   echo "  -v          Verbose output"
