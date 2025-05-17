@@ -9,21 +9,23 @@
 # Example: "htttps://github.com/traap/gits gits"
 
 repo_editor=(
-  "https://github.com/folke/lazy.nvim.git lazy.nvim"
-  "https://github.com/neovim/neovim.git neovim"
+  "https://github.com/LazyVim/starter LazyVim"
+  "https://github.com/folke/lazy.nvim lazy.nvim"
+  "https://github.com/neovim/neovim neovim"
 )
 
 repo_fzf=(
-  "https://github.com/junegunn/fzf-git.sh fzf1"
-  "https://github.com/junegunn/everything.fzf fzf2"
+  "https://github.com/junegunn/fzf-git.sh fzf"
+  "https://github.com/junegunn/everything.fzf everything"
 )
 
 repo_hyprland=(
-  "git@github.com:JaKooLit/Hyprland-Dots.git Dots"
-  "git@github.com:JaKooLit/Arch-Hyprland.git Arch"
+  "https://github.com/JaKooLit/Hyprland-Dots Dots"
+  "https://github.com/JaKooLit/Arch-Hyprland Arch"
 )
 
 repo_plugins=(
+  "https://github.com/nvim-neo-tree/neo-tree.nvim neo-tree"
   "https://github.com/nvim-telescope/telescope.nvim telescope"
   "https://github.com/tpope/vim-fugitive fugitive"
 )
