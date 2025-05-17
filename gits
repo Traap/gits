@@ -123,27 +123,25 @@ usage() {
   echo_info "Usage: gits [-h -l -R] [-r name -d -s -u -v -x] [-c | -p] [-n]"
   echo
   echo "Options:"
-  echo "  -h          Show help"
-  echo "  -l          List repository locations"
-  echo "  -R          Apply modifiers to repository locations"
+  echo "  -h  Show help."
+  echo "  -l  List repository locations."
+  echo "  -R  Apply modifiers to repository locations."
   echo
-  echo "Repository Locations"
-  echo "  -r name "
-  echo "Modifiers"
-  echo "  -d          Delete repository location"
-  echo "  -s          List repositories with stash entries"
-  echo "  -u          Convert UTF-16 files to UTF-8"
-  echo "  -v          Verbose output"
-  echo "  -x          Clean untracked files"
+  echo "Repository Locations:"
+  echo "  -r  name "
+  echo "Modifiers:"
+  echo "  -d  Delete repository location."
+  echo "  -s  List repositories with stash entries."
+  echo "  -u  Convert UTF-16 files to UTF-8."
+  echo "  -v  Verbose output."
+  echo "  -x  Clean untracked files."
   echo
   echo "Mutually exclusive actions"
-  echo "  -c          Clone repositories defined in repositry locations array"
-  echo "  -p          Pull repositories with safe stashing"
+  echo "  -c  Clone repositories in repository locations array."
+  echo "  -p  Pull repositories in repository location array with safe stashing."
   echo
   echo "Dry-run"
-  echo "  -n          Dry-run (simulate actions)"
-
-
+  echo "  -n  Dry-run (simulate actions)"
 }
 
 # -------------------------------------------------------------------------- }}}
