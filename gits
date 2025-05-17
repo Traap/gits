@@ -15,6 +15,7 @@ defineVariables() {
   list=false
   all_mode=false
   clone_mode=false
+  delete_mode=false
   repo_mode=false
   pull_mode=false
   dry_run=false
@@ -24,7 +25,7 @@ defineVariables() {
   stash_list_mode=false
 
   # Parallel job counters.
-  max_jobs=4
+  max_jobs=7
   jobcount=0
 
   # Count of work done.
@@ -45,6 +46,7 @@ defineIcons() {
   ICON_CONVERT="🔄"
   ICON_DONE="✅"
   ICON_ERROR="❌"
+  ICON_INFO="ℹ️"
   ICON_PULL="⬆️"
   ICON_STASH="📦"
   ICON_SUCCESS="✅"
@@ -56,7 +58,7 @@ defineIcons() {
 # {{{ Colors and Icons helper functions.
 
 echo_info()    { echo -e "\\e[34m$1\\e[0m"; }
-echo_warn()    { echo -e "\\e[33m$1\\e[0m"; }
+echo_warn()    { echo -e "\\e[33m$1\e[0m"; }
 echo_error()   { echo -e "\\e[31m$1\\e[0m"; }
 echo_success() { echo -e "\\e[32m$1\\e[0m"; }
 
@@ -126,19 +128,20 @@ usage() {
   echo "  -R          Apply actions and mutually exclusive actions to all repository locations."
   echo
   echo "Actions"
-  echo "  -r          Operate on filesystem repositories"
+  echo "  -r          Repository location
   echo "  Modifiers"
-  echo "  -U          Convert UTF-16 files to UTF-8 (with -r)"
-  echo "  -s          List repositories with stash entries (with -r)"
-  echo "  -v          Verbose output (with -c or -p)"
-  echo "  -x          Clean untracked files (with -r)"
+  echo "  -d          Delete repository location
+  echo "  -s          List repositories with stash entries"
+  echo "  -u          Convert UTF-16 files to UTF-8"
+  echo "  -v          Verbose output"
+  echo "  -x          Clean untracked files"
   echo
   echo "Mutually exclusive actions"
-  echo "  -c          Clone missing repositories (from bash arrays)"
+  echo "  -c          Clone repositories defined in repositry locations array"
   echo "  -p          Pull repositories with safe stashing"
   echo
   echo "Dry-run"
-  echo "  -d          Dry-run (simulate actions)"
+  echo "  -n          Dry-run (simulate actions)"
 
 
 }
@@ -149,15 +152,16 @@ usage() {
 parseArguments() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      -R) all_mode=true ;;
       -c) clone_mode=true ;;
-      -d) dry_run=true ;;
+      -d) delete_mode=true ;;
       -h) help=true ;;
       -l) list=true ;;
+      -n) dry_run=true ;;
       -p) pull_mode=true ;;
       -r) repo_mode=true ;;
-      -R) all_mode=true ;;
       -s) stash_list_mode=true ;;
-      -U) utf_mode=true ;;
+      -u) utf_mode=true ;;
       -v) verbose=true ;;
       -x) clean_mode=true ;;
       *) repo_args+=("$1") ;;
@@ -256,6 +260,23 @@ cloneRepository() {
 }
 
 # -------------------------------------------------------------------------- }}}
+# {{{ Delete repository location
+
+delteRepositoryLocation() {
+  local basedir="$1"
+  if [[ $dry_run == false ]]; then
+    if [[ $verbose == true ]]; then
+      echo_warn "$ICON_CLEAN Deleting $basedir"
+      rm -rfv $basedir
+    else
+      rm -rf $basedir
+    fi
+  else
+    echo_warn "$ICON_CLEAN Would delete $basedir"
+  fi
+}
+
+# -------------------------------------------------------------------------- }}}
 # {{{ Pull Repository
 
 pullRepository() {
@@ -295,14 +316,15 @@ processRepository() {
   local repos_location_name="repo_${location}[@]"
   local basedir="$HOME/$location"
 
-  mkdir -p "$basedir"
-
   # Clone repositories.
   if [[ $clone_mode == true ]]; then
     if ! declare -p "$repo_location_check" &>/dev/null; then
       echo_error "ERROR: Repository location '$location' is not defined."
       exit 1
     fi
+
+    # Make Repository Location
+    mkdir -p "$basedir"
 
     # Repos referenced by repos_location_name.
     local repos=("${!repos_location_name}")
@@ -326,6 +348,12 @@ processRepository() {
       waitForJobs
       ((jobcount++))
     done
+
+  # Delete repository location
+  elif [[ $delete_mode == true ]]; then
+   delteRepositoryLocation "$basedir" &
+   waitForJobs
+   ((jobcount++))
 
   # Other repository actions.
   elif [[ $repo_mode == true ]]; then
@@ -410,7 +438,9 @@ main() {
       processRepository "$location"
     done
   else
+    echo_info "$ICON_INFO All mode started."
     for rln in "${repo_location_names[@]}"; do
+      echo_info "$ICON_CLONE Processing : $rln"
       repo_args+=("$rln")
       for location in "${repo_args[@]}"; do
         processRepository "$location"
