@@ -244,16 +244,6 @@ listRepositoryLocations() {
 }
 
 # -------------------------------------------------------------------------- }}}
-# {{{ Run a job and return its completion status.
-
-runJob() {
-  status=$(eval "$@" &)
-  waitForJobs
-  ((jobcount++))
-  echo $status
-}
-
-# -------------------------------------------------------------------------- }}}
 # {{{ Wait for job to finish.
 
 waitForJobs() {
@@ -270,27 +260,20 @@ cloneRepository() {
   local url="$1"
   local target_dir="$2"
 
-  # FIXME: Synchronization with runJob(). Already exists is reported after
-  # cloning and cloning another repo.  Uncomment both FIXME sections to
-  # observe the issue.
-  # if [[ ! -d "$target_dir/.git" ]]; then
-
+  if [[ ! -d "$target_dir/.git" ]]; then
     echo_info "$ICON_CLONE Cloning $(basename "$target_dir")"
     if [[ $dry_run == false ]]; then
-      status="$(runJob "git clone $url $target_dir &>/dev/null")"
-      if [[ -z $status ]]; then
+      if git clone "$url" "$target_dir" &>/dev/null; then
         ((cloned++))
         echo_success "$ICON_SUCCESS Cloned: $(basename "$target_dir")"
       else
         echo_error "$ICON_ERROR Failed to clone: $(basename "$target_dir")"
       fi
     fi
-
-  # FIXME: Other section.
-  # else
-    # echo_warn "$ICON_WARNING Already exists: $(basename "$target_dir")"
-    # ((skipped++))
-  # fi
+  else
+    echo_warn "$ICON_WARNING Already exists: $(basename "$target_dir")"
+    ((skipped++))
+  fi
 }
 
 # -------------------------------------------------------------------------- }}}
@@ -315,7 +298,6 @@ delteRepositoryLocation() {
 
 pullRepository() {
   local dir="$1"
-  local status=0
 
   if [[ -d "$dir/.git" ]]; then
     echo_info "$ICON_PULL Pulling $(basename "$dir")"
@@ -330,23 +312,23 @@ pullRepository() {
           echo "$dirty"
         fi
         (cd "$dir" && git stash push -u -m "gits auto-stash" &>/dev/null)
-        status=$((status++))
       fi
 
       (cd "$dir" && git pull &>/dev/null)
-      status=$((status++))
+
+      ((updated++))
     fi
   else
     echo_warn "$ICON_WARNING Skipping non-repo: $(basename "$dir")"
-    status=0
+    ((skipped++))
   fi
-  echo $status
 }
 
 # -------------------------------------------------------------------------- }}}
 # {{{ Process Repository
 
 processRepository() {
+
   local location="$1"
   local repo_location_check="repo_${location}"
   local repos_location_name="repo_${location}[@]"
@@ -368,34 +350,25 @@ processRepository() {
       local url="${entry%% *}"
       local alias="${entry##* }"
       local target_dir="$basedir/$alias"
-      cloneRepository "$url" "$target_dir"
+
+      cloneRepository "$url" "$target_dir" &
     done
 
   # Pull repositories.
   elif [[ $pull_mode == true ]]; then
     for dir in "$basedir"/*; do
       [[ -d "$dir" ]] || continue
-      status=$(runJob "pullRepository $dir")
-      case $status in
-        0) ((skipped++)) ;;
-        1) ((pulled++)) ;;
-        2) ((stashed++)) ;;
-        *) ((pulled++)) ;;
-      esac
+      pullRepository "$dir" &
     done
 
   # Delete repository location
   elif [[ $delete_mode == true ]]; then
-   status=$(runJob "delteRepositoryLocation $basedir")
-   if [[ -z $status ]]; then
-     ((deleted++))
-   fi
+   delteRepositoryLocation "$basedir" &
 
   # Other repository actions.
   elif [[ $repo_mode == true ]]; then
     for dir in "$basedir"/*; do
-      [[ -d "$dir" ]] || continue
-      status=$(runJob "processRepositoryActions $dir")
+      processRepositoryActions "$dir" &
     done
   fi
 }
@@ -482,7 +455,8 @@ main() {
   fi
 
   # Wait for all jobs to complete.
-  wait
+  waitForJobs
+  ((jobcount++))
 
   # Calculate elapsed time.
   endTimer
