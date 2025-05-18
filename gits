@@ -193,36 +193,33 @@ def maybe_remove_empty_group_dir(group, dry_run=False, verbose=False):
 
 def delete_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False):
     """
-    Remove all cloned repo directories, and clean up empty group directories.
+    Remove the entire group directory for each group in repo_data.
+    (Deletes ~/group and all contents, with icons.)
     """
+    home = os.path.expanduser("~")
     count = 0
-    for group, entries in repo_data.items():
+    for group in repo_data.keys():
         if selected_group and group != selected_group:
             continue
-        for entry in entries:
-            alias = entry["alias"]
-            found_dirs = find_possible_clone_dirs(group, alias)
-            if found_dirs:
-                for repo_dir in found_dirs:
-                    count += 1
-                    print(f"{ICON_DELETE} {repo_dir}")
-                    if not dry_run:
-                        try:
-                            shutil.rmtree(repo_dir)
-                            print(f"    {ICON_DONE} Removed.")
-                        except Exception as e:
-                            print(f"    {ICON_ERROR} Error removing: {e}")
-                    else:
-                        print(f"    {ICON_INFO} (Dry-run; not removed)")
+        group_dir = os.path.join(home, group)
+        if os.path.isdir(group_dir):
+            print(f"{ICON_DELETE} {group_dir}")
+            count += 1
+            if not dry_run:
+                try:
+                    shutil.rmtree(group_dir)
+                    print(f"    {ICON_DONE} Removed.")
+                except Exception as e:
+                    print(f"    {ICON_ERROR} Error removing: {e}")
             else:
-                if verbose:
-                    print(f"{ICON_WARNING} [NOT FOUND] {group}/{alias}")
-        # Remove group dir if empty
-        maybe_remove_empty_group_dir(group, dry_run=dry_run, verbose=verbose)
+                print(f"    {ICON_INFO} (Dry-run; not removed)")
+        else:
+            if verbose:
+                print(f"{ICON_WARNING} [NOT FOUND] {group_dir}")
     if count == 0:
-        print(f"{ICON_WARNING} No cloned repositories found to delete.")
+        print(f"{ICON_WARNING} No repository groups found to delete.")
     else:
-        print(f"\n{ICON_DONE} Delete complete. {count} repositories processed.")
+        print(f"\n{ICON_DONE} Delete complete. {count} group(s) processed.")
 
 def pull_repo(group, alias, repo_dir, verbose=False, dry_run=False):
     """
