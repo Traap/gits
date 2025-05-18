@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# vim: set foldmethod=marker :
 # {{{ Define global Variables
 
 defineVariables() {
@@ -271,10 +270,14 @@ cloneRepository() {
   local url="$1"
   local target_dir="$2"
 
-  if [[ ! -d "$target_dir/.git" ]]; then
+  # FIXME: Synchronization with runJob(). Already exists is reported after
+  # cloning and cloning another repo.  Uncomment both FIXME sections to
+  # observe the issue.
+  # if [[ ! -d "$target_dir/.git" ]]; then
+
     echo_info "$ICON_CLONE Cloning $(basename "$target_dir")"
     if [[ $dry_run == false ]]; then
-      status=$(runJob "git clone $url $target_dir &>/dev/null")
+      status="$(runJob "git clone $url $target_dir &>/dev/null")"
       if [[ -z $status ]]; then
         ((cloned++))
         echo_success "$ICON_SUCCESS Cloned: $(basename "$target_dir")"
@@ -282,10 +285,12 @@ cloneRepository() {
         echo_error "$ICON_ERROR Failed to clone: $(basename "$target_dir")"
       fi
     fi
-  else
-    echo_warn "$ICON_WARNING Already exists: $(basename "$target_dir")"
-    ((skipped++))
-  fi
+
+  # FIXME: Other section.
+  # else
+    # echo_warn "$ICON_WARNING Already exists: $(basename "$target_dir")"
+    # ((skipped++))
+  # fi
 }
 
 # -------------------------------------------------------------------------- }}}
@@ -380,7 +385,7 @@ processRepository() {
     done
 
   # Delete repository location
-  elif [kk[ $delete_mode == true ]]; then
+  elif [[ $delete_mode == true ]]; then
    status=$(runJob "delteRepositoryLocation $basedir")
    if [[ -z $status ]]; then
      ((deleted++))
