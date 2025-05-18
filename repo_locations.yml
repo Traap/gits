@@ -1,0 +1,33 @@
+editor:
+  - alias: LazyVim
+    url: https://github.com/LazyVim/starter
+  - alias: lazy.nvim
+    url: https://github.com/folke/lazy.nvim
+  - alias: neovim
+    url: https://github.com/neovim/neovim
+
+fzf:
+  - alias: fzf
+    url: https://github.com/junegunn/fzf-git.sh
+  - alias: everything
+    url: https://github.com/junegunn/everything.fzf
+
+hyprland:
+  - alias: Dots
+    url: https://github.com/JaKooLit/Hyprland-Dots
+  - alias: Arch
+    url: https://github.com/JaKooLit/Arch-Hyprland
+
+plugins:
+  - alias: neo-tree
+    url: https://github.com/nvim-neo-tree/neo-tree.nvim
+  - alias: telescope
+    url: https://github.com/nvim-telescope/telescope.nvim
+  - alias: fugitive
+    url: https://github.com/tpope/vim-fugitive
+
+traap:
+  - alias: gits
+    url: https://github.com/Traap/gits
+  - alias: nvims
+    url: https://github.com/Traap/nvims

@@ -12,8 +12,8 @@ sudo chmod -v +x /usr/local/bin/gits
 
 # Install default config if not present
 mkdir -p "$HOME/.config/gits"
-if [ ! -f "$HOME/.config/gits/repo_locations" ]; then
-  cp repo_locations "$HOME/.config/gits/repo_locations"
+if [ ! -f "$HOME/.config/gits/repo_locations.yml" ]; then
+  cp repo_locations "$HOME/.config/gits/repo_locations.yml"
 fi
 
 # Cleanup temporary directory.

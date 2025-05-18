@@ -1,491 +1,479 @@
-#!/usr/bin/env bash
-# {{{ Define global Variables
-
-defineVariables() {
-  # Locaion of repositories to manage.
-  REPO_CONFIG="$HOME/.config/gits/repo_locations"
-
-  # Repositories defefined in REPO_CONFIG
-  repo_names=()
-  repo_location_names=()
-
-  # Command line flags.
-  all_mode=false
-  clean_mode=false
-  clone_mode=false
-  delete_mode=false
-  dry_run=false
-  help=false
-  list=false
-  pull_mode=false
-  repo_mode=false
-  stash_list_mode=false
-  utf_mode=false
-  verbose=false
-
-  # Declare global associative arrays
-  declare -A job_pid_map
-  declare -A job_alias_map
-  declare -A job_status_map
-  job_index=0
-  max_jobs=7
-  job_count=0
-
-  # Count of work done.
-  cleaned=0
-  cloned=0
-  converted=0
-  deleted=0
-  pulled=0
-  skipped=0
-  stashes=0
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ Define Icons
-
-defineIcons() {
-  ICON_CLEAN="🧹"
-  ICON_CLONE="➡️"
-  ICON_CONVERT="🔄"
-  ICON_DELETE="❌"
-  ICON_DONE="✅"
-  ICON_ERROR="❌"
-  ICON_INFO="ℹ️"
-  ICON_PULL="⬆️"
-  ICON_STASH="📦"
-  ICON_SUCCESS="✅"
-  ICON_TIME="⏱️"
-  ICON_WARNING="⚠️"
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ Colors and Icons helper functions.
-
-echo_info()    { echo -e "\\e[34m$1\\e[0m"; }
-echo_warn()    { echo -e "\\e[33m$1\e[0m"; }
-echo_error()   { echo -e "\\e[31m$1\\e[0m"; }
-echo_success() { echo -e "\\e[32m$1\\e[0m"; }
-
-# -------------------------------------------------------------------------- }}}
-# {{{ Start Timer
-
-startTimer() {
-  start_time=$(date +%s)
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ End timer
-
-endTimer() {
-  end_time=$(date +%s)
-  elapsed=$((end_time - start_time))
-  minutes=$((elapsed / 60))
-  seconds=$((elapsed % 60))
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ Report final Status
-
-reportStatus() {
-  echo
-  echo_info "Summary:"
-
-  if [[ $clean_mode == true ]]; then
-    echo "$ICON_CLEAN Cleaned : $cleaned"
-
-  elif [[ $clone_mode == true ]]; then
-    echo "$ICON_CLONE Cloned : $cloned"
-    echo "$ICON_WARNING Skipped: $skipped"
-
-  elif [[ $convert_mode == true ]]; then
-    echo "$ICON_CONVERT Convert : $converted"
-
-  elif [[ $delete_mode == true ]]; then
-    echo "$ICON_DELETE Deleted : $deleted"
-
-  elif [[ $pull_mode == true ]]; then
-    echo "$ICON_PULL Pulled : $pulled"
-    echo "$ICON_WARNING Skipped: $skipped"
-
-  elif [[ $stash_list_mode == true ]]; then
-    echo "$ICON_STASH Stashes : $stashes"
-
-  elif [[ $utf_mode == true ]]; then
-    echo "$ICON_CONVERT Converted : $converted"
-  fi
-  echo
-  echo_success "$ICON_DONE Done."
-  echo_info "$ICON_TIME Elapsed time: ${minutes}m ${seconds}s"
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ Load Config
-
-loadConfiguration() {
-  if [[ -f "$REPO_CONFIG" ]]; then
-    source "$REPO_CONFIG"
-  else
-    echo_error "ERROR: repo_locations file not found at $REPO_CONFIG"
-    exit 1
-  fi
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ Extract Repository Location Names
-
-extractRepoLocationNames() {
-  mapfile -t repo_location_names < <(grep '^repo_' "$REPO_CONFIG" | sed 's/^repo_//;s/=.*//')
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ Display usage
-
-usage() {
-  echo
-  echo_info "Usage: gits [-h -l -R] [-r name -d -s -u -x] [-c | -p] [-n -v]"
-  echo
-  echo "Options:"
-  echo "  -h  Show help."
-  echo "  -l  List repository locations."
-  echo "  -R  Apply modifiers to repository locations (overrides -r)."
-  echo
-  echo "Repository Locations:"
-  echo "  -r  name "
-  echo "Modifiers:"
-  echo "  -d  Delete repository location."
-  echo "  -s  List repositories with stash entries."
-  echo "  -u  Convert UTF-16 files to UTF-8."
-  echo "  -x  Clean untracked files."
-  echo
-  echo "Mutually exclusive actions:"
-  echo "  -c  Clone repositories in repository locations array."
-  echo "  -p  Pull repositories in repository location array with safe stashing."
-  echo
-  echo "Miscellaneous:"
-  echo "  -n  Dry-run (simulate actions)."
-  echo "  -v  Verbose output."
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ Parse Arguments
-
-validateArguments() {
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      -R) all_mode=true ;;
-      -c) clone_mode=true ;;
-      -d) delete_mode=true ;;
-      -h) help=true ;;
-      -l) list=true ;;
-      -n) dry_run=true ;;
-      -p) pull_mode=true ;;
-      -r) repo_mode=true ;;
-      -s) stash_list_mode=true ;;
-      -u) utf_mode=true ;;
-      -v) verbose=true ;;
-      -x) clean_mode=true ;;
-      *) repo_names+=("$1") ;;
-    esac
-    shift
-  done
-
-  if [[ $help == true || $list == true ]]; then
-    [[ $help == true ]] && usage
-    [[ $list == true ]] && listRepositoryLocations
-    exit 0
-  fi
-
-  # Repo location is mandatory.
-  if [[ $repo_mode == false && $all_mode == false ]]; then
-    echo_error "ERROR: -r repo-location or -R is mandatory."
-    exit 1
-  fi
-
-  # Validate exclusivity
-  if [[ $clone_mode == true && $pull_mode == true ]]; then
-    echo_error "ERROR: -c and -p are mutually exclusive."
-    exit 1
-  fi
-
-  # Clone mode
-  if [[ $clone_mode == true ]]; then
-    if [[ $clean_mode == true || $utf_mode == true || $stash_list_mode == true ]]; then
-      echo_error "ERROR: -c cannot be combined with -x, -U, or -s."
-      exit 1
-    fi
-  fi
-
-  # Pull mode
-  if [[ $pull_mode == true ]]; then
-    if [[ $clean_mode == true || $utf_mode == true || $stash_list_mode == true ]]; then
-      echo_error "ERROR: -p cannot be combined with -x, -U, or -s."
-      exit 1
-    fi
-  fi
-
-  # Process clean, UTF, or
-  if [[ $repo_mode == true ]]; then
-    if [[ ($clean_mode == true || $utf_mode == true || $stash_list_mode == true) \
-       && ($clone_mode == true || $pull_mode == true) ]]; then
-      echo_error "ERROR: -c or -p cannot be combined with -x, -U, or -s."
-      exit 1
-    fi
-  fi
-
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ List Repository Locations
-
-listRepositoryLocations() {
-  echo
-  echo_info "Available repository locations:"
-  for rln in "${repo_location_names[@]}"; do
-    echo "$rln"
-  done
-  echo
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ Run Job
-
-runJob() {
-  local alias="$1"
-
-  status=$(eval "$@" &)
-
-  local pid=$!
-  job_pid_map[$job_index]=$pid
-  job_alias_map[$job_index]="$alias"
-  ((job_index++))
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ Wait for job to finish.
-
-waitForJobs() {
-  for idx in "${!job_pid_map[@]}"; do
-    local pid=${job_pid_map[$idx]}
-    if wait "$pid"; then
-      job_status_map[$idx]=0
-    else
-      job_status_map[$idx]=$?
-    fi
-  done
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ Clone Repository
-
-cloneRepository() {
-  local url="$1"
-  local target_dir="$2"
-
-  if [[ ! -d "$target_dir/.git" ]]; then
-    echo_info "$ICON_CLONE Cloning $(basename "$target_dir")"
-    if [[ $dry_run == false ]]; then
-      if git clone "$url" "$target_dir" &>/dev/null; then
-        ((cloned++))
-        echo_success "$ICON_SUCCESS Cloned: $(basename "$target_dir")"
-      else
-        echo_error "$ICON_ERROR Failed to clone: $(basename "$target_dir")"
-      fi
-    fi
-  else
-    echo_warn "$ICON_WARNING Already exists: $(basename "$target_dir")"
-    ((skipped++))
-  fi
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ Delete repository location
-
-delteRepositoryLocation() {
-  local basedir="$1"
-  if [[ $dry_run == false ]]; then
-    if [[ $verbose == true ]]; then
-      echo_warn "$ICON_DELETE Deleting $basedir"
-      rm -rfv $basedir
-    else
-      rm -rf $basedir
-    fi
-  else
-    echo_warn "$ICON_DELETE Would delete $basedir"
-  fi
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ Pull Repository
-
-pullRepository() {
-  local dir="$1"
-
-  if [[ -d "$dir/.git" ]]; then
-    echo_info "$ICON_PULL Pulling $(basename "$dir")"
-
-    if [[ $dry_run == false ]]; then
-      local dirty
-      dirty=$(cd "$dir" && git status --porcelain)
-
-      if [[ -n "$dirty" ]]; then
-        echo_info "$ICON_STASH Stashing changes in $(basename "$dir")"
-        if [[ $verbose == true ]]; then
-          echo "$dirty"
-        fi
-        (cd "$dir" && git stash push -u -m "gits auto-stash" &>/dev/null)
-      fi
-
-      (cd "$dir" && git pull &>/dev/null)
-
-      ((updated++))
-    fi
-  else
-    echo_warn "$ICON_WARNING Skipping non-repo: $(basename "$dir")"
-    ((skipped++))
-  fi
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ Process Repository
-
-processRepository() {
-
-  local location="$1"
-  local repo_location_check="repo_${location}"
-  local repos_location_name="repo_${location}[@]"
-  local basedir="$HOME/$location"
-
-  # Clone repositories.
-  if [[ $clone_mode == true ]]; then
-    if ! declare -p "$repo_location_check" &>/dev/null; then
-      echo_error "ERROR: Repository location '$location' is not defined."
-      exit 1
-    fi
-
-    # Make Repository Location
-    mkdir -p "$basedir"
-
-    # Repos referenced by repos_location_name.
-    local repos=("${!repos_location_name}")
-    for entry in "${repos[@]}"; do
-      local url="${entry%% *}"
-      local alias="${entry##* }"
-      local target_dir="$basedir/$alias"
-
-      runJob "cloneRepository $url $target_dir"
-    done
-
-  # Pull repositories.
-  elif [[ $pull_mode == true ]]; then
-    for dir in "$basedir"/*; do
-      [[ -d "$dir" ]] || continue
-      runJob "pullRepository $dir"
-    done
-
-  # Delete repository location
-  elif [[ $delete_mode == true ]]; then
-   runJob "delteRepositoryLocation $basedir"
-
-  # Other repository actions.
-  elif [[ $repo_mode == true ]]; then
-    for dir in "$basedir"/*; do
-      runJob "processRepositoryActions $dir"
-    done
-  fi
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ Process Repository Actions
-
-processRepositoryActions() {
-  local dir="$1"
-  [[ -d "$dir/.git" ]] || return
-
-  if [[ $clean_mode == true ]]; then
-    echo_info "$ICON_CLEAN Cleaning untracked files: $(basename "$dir")"
-    if [[ $verbose == true ]]; then
-      (cd "$dir" && git clean -fd)
-    else
-      (cd "$dir" && git clean -fdq)
-    fi
-    ((cleaned++))
-  fi
-
-  if [[ $utf_mode == true ]]; then
-    for file in "$dir"/*; do
-      [[ -f "$file" ]] || continue
-      if file "$file" | grep -q 'UTF-16'; then
-        echo_info "$ICON_CONVERT Converting UTF-16 to UTF-8: $(basename "$file")"
-        if [[ $dry_run == false ]]; then
-          iconv -f UTF-16 -t UTF-8 "$file" -o "$file.new" && mv "$file.new" "$file"
-          ((converted++))
-        fi
-      fi
-    done
-  fi
-
-  if [[ $stash_list_mode == true ]]; then
-    local cmdVerbose="git status -s -u && git stash list"
-    local cmdSilent="(git status -s -u && git stash list) | grep -q ."
-    if [[ $verbose == true ]]; then
-      if (cd "$dir" && eval "$cmdSilent"); then
-        echo_info "$ICON_STASH Change found: $(basename "$dir")"
-        # Run verbose command to list changes.
-        (cd "$dir" && eval "$cmdVerbose")
-        ((stashes++))
-      fi
-    else
-      if (cd "$dir" && eval "$cmdSilent"); then
-        echo_info "$ICON_STASH Change found: $(basename "$dir")"
-        ((stashes++))
-      fi
-    fi
-  fi
-}
-
-# -------------------------------------------------------------------------- }}}
-# {{{ Main
-
-main() {
-  # Time all activities.
-  startTimer
-
-  # Setup activities.
-  defineVariables
-  defineIcons
-  loadConfiguration
-  extractRepoLocationNames
-
-  # Validate user request.
-  validateArguments "$@"
-
-  # Process user requests.
-  if [[ $all_mode == false ]]; then
-    for rn in "${repo_names[@]}"; do
-      processRepository "$rn"
-    done
-  else
-    echo_info "$ICON_INFO All mode started."
-    for rln in "${repo_location_names[@]}"; do
-      echo_info "$ICON_CLONE Processing : $rln"
-      repo_names+=("$rln")
-      for repo in "${repo_names[@]}"; do
-        processRepository "$repo"
-      done
-    done
-  fi
-
-  # Wait for all jobs to complete.
-  waitForJobs
-  ((job_count++))
-
-  # Calculate elapsed time.
-  endTimer
-
-  # Report final status.
-  reportStatus
-}
-
-# -------------------------------------------------------------------------- }}}
-main "$@"
+#!/usr/bin/env python3
+"""
+gits.py - Python version of 'gits' repository management script.
+
+Features:
+  - Clone repos from YAML config, into $HOME/group/alias paths (with parallelism)
+  - Delete repo dirs (and group dir if empty)
+  - Pull all (with safe stashing)
+  - List group names
+  - List repos with stash entries
+  - Clean untracked files in all repos
+  - Convert UTF-16 files to UTF-8 recursively in all repos
+  - Support for -r (per-group), dry-run (-n), and verbose (-v)
+
+Author: Traap
+Date: 2025-05-20
+"""
+
+import argparse
+import sys
+import os
+import yaml
+import subprocess
+import shutil
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+def load_repos_yaml(filepath):
+    """
+    Load the repository locations YAML file.
+    """
+    if not os.path.exists(filepath):
+        print(f"Repo locations file not found: {filepath}")
+        sys.exit(1)
+    with open(filepath, 'r') as f:
+        return yaml.safe_load(f)
+
+def print_help():
+    """
+    Show help text, falling back to CLI usage if gits-help.txt not found.
+    """
+    help_path = os.path.join(os.path.dirname(__file__), "gits-help.txt")
+    if os.path.isfile(help_path):
+        with open(help_path) as f:
+            print(f.read())
+    else:
+        # Fallback: Show usage even if help file is missing
+        print("Usage: gits [-h -l -R] [-r name -d -s -u -v -x] [-c | -p] [-n]\n")
+        print("Options:")
+        print("  -h          Show help")
+        print("  -l          List repository locations")
+        print("  -R          Apply modifiers to repository locations")
+        print("Repository Locations")
+        print("  -r name")
+        print("Modifiers")
+        print("  -d          Delete repository location")
+        print("  -s          List repositories with stash entries")
+        print("  -u          Convert UTF-16 files to UTF-8")
+        print("  -v          Verbose output")
+        print("  -x          Clean untracked files")
+        print("Mutually exclusive actions")
+        print("  -c          Clone repositories defined in repository locations array")
+        print("  -p          Pull repositories with safe stashing")
+        print("Dry-run")
+        print("  -n          Dry-run (simulate actions)")
+
+def list_repos(repo_data):
+    """
+    List only the group names found in the YAML.
+    """
+    print("Repository locations:\n")
+    for group in repo_data.keys():
+        print(f"  {group}")
+    print()
+
+def iter_repo_dirs(repo_data, selected_group=None):
+    """
+    Yield (group, alias, repo_dir) for each repo in (optionally) selected group.
+    """
+    home = os.path.expanduser("~")
+    for group, entries in repo_data.items():
+        if selected_group and group != selected_group:
+            continue
+        for entry in entries:
+            alias = entry["alias"]
+            repo_dir = os.path.join(home, group, alias)
+            yield group, alias, repo_dir
+
+def clone_repo(url, alias, group, verbose=False, dry_run=False):
+    """
+    Clone a single repository.
+    """
+    home = os.path.expanduser("~")
+    dest_dir = os.path.join(home, group, alias)
+    if os.path.exists(dest_dir) and os.listdir(dest_dir):
+        return (alias, url, dest_dir, "SKIPPED", 0, "Directory not empty")
+    if dry_run:
+        return (alias, url, dest_dir, "DRY-RUN", 0, "")
+    os.makedirs(os.path.dirname(dest_dir), exist_ok=True)
+    cmd = ["git", "clone", url, dest_dir]
+    try:
+        if verbose:
+            print(f"Cloning {url} to {dest_dir}")
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode == 0:
+            return (alias, url, dest_dir, "SUCCESS", 0, "")
+        else:
+            return (alias, url, dest_dir, "FAIL", result.returncode, result.stderr)
+    except Exception as e:
+        return (alias, url, dest_dir, "FAIL", -1, str(e))
+
+def clone_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False, max_workers=4):
+    """
+    Clone all repositories (optionally, only in selected group), in parallel.
+    """
+    jobs = []
+    for group, entries in repo_data.items():
+        if selected_group and group != selected_group:
+            continue
+        for entry in entries:
+            jobs.append((entry["url"], entry["alias"], group))
+    print(f"Cloning {len(jobs)} repositories (parallel={max_workers})...\n")
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_job = {
+            executor.submit(clone_repo, url, alias, group, verbose, dry_run): (alias, url, group)
+            for url, alias, group in jobs
+        }
+        for future in as_completed(future_to_job):
+            res = future.result()
+            alias, url, dest_dir, status, code, msg = res
+            results.append(res)
+            group = dest_dir.split("/")[-2] if "/" in dest_dir else ""
+            print(f"[{status}] {group}/{alias:12} {url}")
+            if status == "FAIL":
+                print(f"    Error: {msg.strip()}")
+            if status == "SKIPPED":
+                print(f"    Skipped: {msg.strip()}")
+    ok = sum(1 for r in results if r[3] in ['SUCCESS', 'DRY-RUN', 'SKIPPED'])
+    failed = sum(1 for r in results if r[3]=='FAIL')
+    print(f"\nClone complete. {ok} succeeded/skipped/dry-run, {failed} failed.")
+
+def find_possible_clone_dirs(group, alias):
+    """
+    Return a list of all plausible repo dirs (including accidental CWD clones).
+    """
+    home = os.path.expanduser("~")
+    candidates = [
+        os.path.join(home, group, alias),
+        os.path.join(".", group, alias),
+        os.path.join(".", "~", group, alias),
+        os.path.join(home, alias),
+        os.path.join(".", alias),
+        os.path.join(".", "~", alias),
+    ]
+    found = []
+    for path in candidates:
+        if os.path.isdir(path):
+            found.append(os.path.abspath(path))
+    return found
+
+def maybe_remove_empty_group_dir(group, dry_run=False, verbose=False):
+    """
+    Remove the group dir from $HOME if it is empty after deletions.
+    """
+    home = os.path.expanduser("~")
+    group_dir = os.path.join(home, group)
+    try:
+        if os.path.isdir(group_dir) and not os.listdir(group_dir):
+            if not dry_run:
+                os.rmdir(group_dir)
+                print(f"Removed empty group directory: {group_dir}")
+            else:
+                print(f"(Dry-run) Would remove empty group directory: {group_dir}")
+        elif verbose and os.path.isdir(group_dir):
+            print(f"Group directory not empty: {group_dir}")
+    except Exception as e:
+        print(f"Warning: Could not remove group directory {group_dir}: {e}")
+
+def delete_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False):
+    """
+    Remove all cloned repo directories, and clean up empty group directories.
+    """
+    count = 0
+    for group, entries in repo_data.items():
+        if selected_group and group != selected_group:
+            continue
+        for entry in entries:
+            alias = entry["alias"]
+            found_dirs = find_possible_clone_dirs(group, alias)
+            if found_dirs:
+                for repo_dir in found_dirs:
+                    count += 1
+                    print(f"[DELETE] {repo_dir}")
+                    if not dry_run:
+                        try:
+                            shutil.rmtree(repo_dir)
+                            print("    Removed.")
+                        except Exception as e:
+                            print(f"    Error removing: {e}")
+                    else:
+                        print("    (Dry-run; not removed)")
+            else:
+                if verbose:
+                    print(f"[NOT FOUND] {group}/{alias}")
+        # Remove group dir if empty
+        maybe_remove_empty_group_dir(group, dry_run=dry_run, verbose=verbose)
+    if count == 0:
+        print("No cloned repositories found to delete.")
+    else:
+        print(f"\nDelete complete. {count} repositories processed.")
+
+def pull_repo(group, alias, repo_dir, verbose=False, dry_run=False):
+    """
+    Pull changes for a repo, stashing local changes if necessary.
+    """
+    if not os.path.isdir(repo_dir):
+        return (alias, group, "NOT_FOUND", None)
+    if dry_run:
+        return (alias, group, "DRY-RUN", None)
+    try:
+        # Check for uncommitted changes
+        changed = subprocess.run(
+            ["git", "-C", repo_dir, "status", "--porcelain"],
+            capture_output=True, text=True)
+        stashed = False
+        if changed.stdout.strip():
+            # Stash changes
+            stash = subprocess.run(
+                ["git", "-C", repo_dir, "stash"], capture_output=True, text=True)
+            stashed = "No local changes" not in stash.stdout
+            if verbose:
+                print(f"[{group}/{alias}] Stashed local changes")
+        # Pull latest
+        pull = subprocess.run(
+            ["git", "-C", repo_dir, "pull"], capture_output=True, text=True)
+        if pull.returncode != 0:
+            return (alias, group, "FAIL", pull.stderr)
+        # Restore stash if we made one
+        if stashed:
+            subprocess.run(
+                ["git", "-C", repo_dir, "stash", "pop"], capture_output=True, text=True)
+            if verbose:
+                print(f"[{group}/{alias}] Popped stash after pull")
+        return (alias, group, "SUCCESS", None)
+    except Exception as e:
+        return (alias, group, "FAIL", str(e))
+
+def pull_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False, max_workers=4):
+    """
+    Pull all repositories (optionally, only in selected group), in parallel.
+    """
+    jobs = list(iter_repo_dirs(repo_data, selected_group))
+    print(f"Pulling {len(jobs)} repositories (parallel={max_workers})...\n")
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_job = {
+            executor.submit(pull_repo, group, alias, repo_dir, verbose, dry_run): (alias, group)
+            for group, alias, repo_dir in jobs
+        }
+        for future in as_completed(future_to_job):
+            alias, group, status, msg = future.result()
+            results.append((alias, group, status))
+            print(f"[{status}] {group}/{alias}")
+            if msg and status == "FAIL":
+                print(f"    Error: {msg.strip()}")
+    print(f"\nPull complete. {sum(1 for r in results if r[2]=='SUCCESS' or r[2]=='DRY-RUN')} succeeded/dry-run, {sum(1 for r in results if r[2]=='FAIL')} failed.")
+
+def list_stashed_repos(repo_data, selected_group=None, verbose=False):
+    """
+    List repositories which have stash entries.
+    """
+    jobs = list(iter_repo_dirs(repo_data, selected_group))
+    found = False
+    for group, alias, repo_dir in jobs:
+        if not os.path.isdir(repo_dir):
+            continue
+        result = subprocess.run(
+            ["git", "-C", repo_dir, "stash", "list"],
+            capture_output=True, text=True)
+        if result.stdout.strip():
+            print(f"{group}/{alias} has stashes:")
+            print(result.stdout)
+            found = True
+    if not found:
+        print("No stashed entries found in any repository.")
+
+def clean_untracked_repo(group, alias, repo_dir, verbose=False, dry_run=False):
+    """
+    Remove all untracked files from a repo (git clean -fd).
+    """
+    if not os.path.isdir(repo_dir):
+        return (alias, group, "NOT_FOUND", None)
+    if dry_run:
+        return (alias, group, "DRY-RUN", None)
+    result = subprocess.run(
+        ["git", "-C", repo_dir, "clean", "-fd"],
+        capture_output=True, text=True)
+    if result.returncode == 0:
+        return (alias, group, "CLEANED", None)
+    else:
+        return (alias, group, "FAIL", result.stderr)
+
+def clean_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False, max_workers=4):
+    """
+    Remove untracked files from all repositories.
+    """
+    jobs = list(iter_repo_dirs(repo_data, selected_group))
+    print(f"Cleaning untracked files in {len(jobs)} repositories (parallel={max_workers})...\n")
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_job = {
+            executor.submit(clean_untracked_repo, group, alias, repo_dir, verbose, dry_run): (alias, group)
+            for group, alias, repo_dir in jobs
+        }
+        for future in as_completed(future_to_job):
+            alias, group, status, msg = future.result()
+            results.append((alias, group, status))
+            print(f"[{status}] {group}/{alias}")
+            if msg and status == "FAIL":
+                print(f"    Error: {msg.strip()}")
+    print(f"\nClean complete. {sum(1 for r in results if r[2]=='CLEANED' or r[2]=='DRY-RUN')} cleaned/dry-run, {sum(1 for r in results if r[2]=='FAIL')} failed.")
+
+def convert_utf16_to_utf8_in_repo(group, alias, repo_dir, verbose=False, dry_run=False):
+    """
+    Recursively convert UTF-16 files to UTF-8 in a repo.
+    Only files with UTF-16 BOM (little/big endian) are converted.
+    """
+    if not os.path.isdir(repo_dir):
+        return (alias, group, "NOT_FOUND", 0)
+    converted_files = 0
+    for root, _, files in os.walk(repo_dir):
+        for fname in files:
+            path = os.path.join(root, fname)
+            try:
+                with open(path, "rb") as f:
+                    raw = f.read(4)
+                    if raw.startswith(b'\xff\xfe') or raw.startswith(b'\xfe\xff'):
+                        # Probably UTF-16 BOM
+                        if dry_run:
+                            converted_files += 1
+                            if verbose:
+                                print(f"(Dry-run) Would convert: {path}")
+                            continue
+                        with open(path, "r", encoding="utf-16") as fi:
+                            data = fi.read()
+                        with open(path, "w", encoding="utf-8") as fo:
+                            fo.write(data)
+                        converted_files += 1
+                        if verbose:
+                            print(f"Converted: {path}")
+            except Exception as e:
+                if verbose:
+                    print(f"Failed to check/convert {path}: {e}")
+    return (alias, group, "CONVERTED", converted_files)
+
+def convert_all_utf16(repo_data, selected_group=None, verbose=False, dry_run=False, max_workers=4):
+    """
+    Convert all UTF-16 files to UTF-8 in all repositories (parallel).
+    """
+    jobs = list(iter_repo_dirs(repo_data, selected_group))
+    print(f"Checking for UTF-16 files in {len(jobs)} repositories (parallel={max_workers})...\n")
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_job = {
+            executor.submit(convert_utf16_to_utf8_in_repo, group, alias, repo_dir, verbose, dry_run): (alias, group)
+            for group, alias, repo_dir in jobs
+        }
+        for future in as_completed(future_to_job):
+            alias, group, status, converted = future.result()
+            results.append((alias, group, status, converted))
+            print(f"[{status}] {group}/{alias} files converted: {converted}")
+    total = sum(r[3] for r in results if isinstance(r[3], int))
+    print(f"\nUTF-16 to UTF-8 conversion complete. {total} files converted.")
+
+def main():
+    """
+    Parse arguments and dispatch to feature.
+    """
+    parser = argparse.ArgumentParser(add_help=False, usage=argparse.SUPPRESS)
+    parser.add_argument('-h', action='store_true')
+    parser.add_argument('-l', action='store_true')
+    parser.add_argument('-R', action='store_true')
+    parser.add_argument('-r', metavar='name', type=str)
+    parser.add_argument('-d', action='store_true')
+    parser.add_argument('-s', action='store_true')
+    parser.add_argument('-u', action='store_true')
+    parser.add_argument('-v', action='store_true')
+    parser.add_argument('-x', action='store_true')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-c', action='store_true')
+    group.add_argument('-p', action='store_true')
+    parser.add_argument('-n', action='store_true')
+    args = parser.parse_args()
+
+    repo_locations_path = os.path.expanduser("~/.config/gits/repo_locations.yml")
+
+    if args.h:
+        print_help()
+        sys.exit(0)
+
+    repo_data = None
+    if args.l or args.R or args.r or args.c or args.p or args.d or args.s or args.u or args.x:
+        repo_data = load_repos_yaml(repo_locations_path)
+
+    if args.l:
+        list_repos(repo_data)
+        sys.exit(0)
+
+    if args.c:
+        max_workers = 4
+        clone_all_repos(
+            repo_data,
+            selected_group=args.r,
+            verbose=args.v,
+            dry_run=args.n,
+            max_workers=max_workers
+        )
+        sys.exit(0)
+
+    if args.d:
+        delete_all_repos(
+            repo_data,
+            selected_group=args.r,
+            verbose=args.v,
+            dry_run=args.n
+        )
+        sys.exit(0)
+
+    if args.p:
+        pull_all_repos(
+            repo_data,
+            selected_group=args.r,
+            verbose=args.v,
+            dry_run=args.n
+        )
+        sys.exit(0)
+
+    if args.s:
+        list_stashed_repos(
+            repo_data,
+            selected_group=args.r,
+            verbose=args.v
+        )
+        sys.exit(0)
+
+    if args.x:
+        clean_all_repos(
+            repo_data,
+            selected_group=args.r,
+            verbose=args.v,
+            dry_run=args.n
+        )
+        sys.exit(0)
+
+    if args.u:
+        convert_all_utf16(
+            repo_data,
+            selected_group=args.r,
+            verbose=args.v,
+            dry_run=args.n
+        )
+        sys.exit(0)
+
+    if args.R:
+        print("Apply to all repository locations (to be implemented)")
+    if args.r:
+        print(f"Selected repository location: {args.r} (to be implemented)")
+    if args.v:
+        print("Verbose output (to be implemented)")
+    if args.n and not (args.c or args.d or args.p or args.x or args.u):
+        print("Dry-run mode (to be implemented)")
+    if args.u:
+        print("Convert UTF-16 files to UTF-8 (to be implemented)")
+    if args.s:
+        print("List stashed repositories (to be implemented)")
+
+if __name__ == '__main__':
+    main()
+
