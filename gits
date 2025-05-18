@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
 """
-gits.py - Python version of 'gits' repository management script.
+gits.py - Python version of 'gits' repository management script, with icons.
 
 Features:
-  - Clone repos from YAML config, into $HOME/group/alias paths (with parallelism)
-  - Delete repo dirs (and group dir if empty)
-  - Pull all (with safe stashing)
-  - List group names
-  - List repos with stash entries
-  - Clean untracked files in all repos
-  - Convert UTF-16 files to UTF-8 recursively in all repos
-  - Support for -r (per-group), dry-run (-n), and verbose (-v)
+  - Clone, delete, pull, clean, convert encoding, list stashes, and more
+  - All repo directories are in $HOME/group/alias
+  - Parallel actions, dry-run and verbose support
+  - Beautiful, informative icons for every status/action
 
 Author: Traap
-Date: 2025-05-20
+Date: 2025-05-18
 """
 
 import argparse
@@ -24,12 +20,26 @@ import subprocess
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# ---- ICONS ----
+ICON_CLEAN    = "🧹"
+ICON_CLONE    = "➡️"
+ICON_CONVERT  = "🔄"
+ICON_DELETE   = "❌"
+ICON_DONE     = "✅"
+ICON_ERROR    = "❌"
+ICON_INFO     = "ℹ️"
+ICON_PULL     = "⬆️"
+ICON_STASH    = "📦"
+ICON_SUCCESS  = "✅"
+ICON_TIME     = "⏱️"
+ICON_WARNING  = "⚠️"
+
 def load_repos_yaml(filepath):
     """
     Load the repository locations YAML file.
     """
     if not os.path.exists(filepath):
-        print(f"Repo locations file not found: {filepath}")
+        print(f"{ICON_ERROR} Repo locations file not found: {filepath}")
         sys.exit(1)
     with open(filepath, 'r') as f:
         return yaml.safe_load(f)
@@ -43,8 +53,7 @@ def print_help():
         with open(help_path) as f:
             print(f.read())
     else:
-        # Fallback: Show usage even if help file is missing
-        print("Usage: gits [-h -l -R] [-r name -d -s -u -v -x] [-c | -p] [-n]\n")
+        print(f"{ICON_INFO} Usage: gits [-h -l -R] [-r name -d -s -u -v -x] [-c | -p] [-n]\n")
         print("Options:")
         print("  -h          Show help")
         print("  -l          List repository locations")
@@ -67,9 +76,9 @@ def list_repos(repo_data):
     """
     List only the group names found in the YAML.
     """
-    print("Repository locations:\n")
+    print(f"{ICON_INFO} Repository locations:\n")
     for group in repo_data.keys():
-        print(f"  {group}")
+        print(f"  {ICON_INFO} {group}")
     print()
 
 def iter_repo_dirs(repo_data, selected_group=None):
@@ -99,7 +108,7 @@ def clone_repo(url, alias, group, verbose=False, dry_run=False):
     cmd = ["git", "clone", url, dest_dir]
     try:
         if verbose:
-            print(f"Cloning {url} to {dest_dir}")
+            print(f"{ICON_CLONE} Cloning {url} to {dest_dir}")
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
             return (alias, url, dest_dir, "SUCCESS", 0, "")
@@ -118,7 +127,7 @@ def clone_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False
             continue
         for entry in entries:
             jobs.append((entry["url"], entry["alias"], group))
-    print(f"Cloning {len(jobs)} repositories (parallel={max_workers})...\n")
+    print(f"{ICON_CLONE} Cloning {len(jobs)} repositories (parallel={max_workers})...\n")
     results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_job = {
@@ -126,18 +135,24 @@ def clone_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False
             for url, alias, group in jobs
         }
         for future in as_completed(future_to_job):
-            res = future.result()
-            alias, url, dest_dir, status, code, msg = res
-            results.append(res)
+            alias, url, dest_dir, status, code, msg = future.result()
             group = dest_dir.split("/")[-2] if "/" in dest_dir else ""
-            print(f"[{status}] {group}/{alias:12} {url}")
+            if status == "SUCCESS":
+                icon = ICON_SUCCESS
+            elif status == "FAIL":
+                icon = ICON_ERROR
+            elif status == "SKIPPED":
+                icon = ICON_WARNING
+            elif status == "DRY-RUN":
+                icon = ICON_INFO
+            else:
+                icon = ICON_INFO
+            print(f"{icon} {group}/{alias:12} {url}")
             if status == "FAIL":
-                print(f"    Error: {msg.strip()}")
+                print(f"    {ICON_ERROR} Error: {msg.strip()}")
             if status == "SKIPPED":
-                print(f"    Skipped: {msg.strip()}")
-    ok = sum(1 for r in results if r[3] in ['SUCCESS', 'DRY-RUN', 'SKIPPED'])
-    failed = sum(1 for r in results if r[3]=='FAIL')
-    print(f"\nClone complete. {ok} succeeded/skipped/dry-run, {failed} failed.")
+                print(f"    {ICON_WARNING} Skipped: {msg.strip()}")
+    print(f"\n{ICON_DONE} Clone complete.")
 
 def find_possible_clone_dirs(group, alias):
     """
@@ -168,13 +183,13 @@ def maybe_remove_empty_group_dir(group, dry_run=False, verbose=False):
         if os.path.isdir(group_dir) and not os.listdir(group_dir):
             if not dry_run:
                 os.rmdir(group_dir)
-                print(f"Removed empty group directory: {group_dir}")
+                print(f"{ICON_DONE} Removed empty group directory: {group_dir}")
             else:
-                print(f"(Dry-run) Would remove empty group directory: {group_dir}")
+                print(f"{ICON_INFO} (Dry-run) Would remove empty group directory: {group_dir}")
         elif verbose and os.path.isdir(group_dir):
-            print(f"Group directory not empty: {group_dir}")
+            print(f"{ICON_INFO} Group directory not empty: {group_dir}")
     except Exception as e:
-        print(f"Warning: Could not remove group directory {group_dir}: {e}")
+        print(f"{ICON_WARNING} Warning: Could not remove group directory {group_dir}: {e}")
 
 def delete_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False):
     """
@@ -190,24 +205,24 @@ def delete_all_repos(repo_data, selected_group=None, verbose=False, dry_run=Fals
             if found_dirs:
                 for repo_dir in found_dirs:
                     count += 1
-                    print(f"[DELETE] {repo_dir}")
+                    print(f"{ICON_DELETE} {repo_dir}")
                     if not dry_run:
                         try:
                             shutil.rmtree(repo_dir)
-                            print("    Removed.")
+                            print(f"    {ICON_DONE} Removed.")
                         except Exception as e:
-                            print(f"    Error removing: {e}")
+                            print(f"    {ICON_ERROR} Error removing: {e}")
                     else:
-                        print("    (Dry-run; not removed)")
+                        print(f"    {ICON_INFO} (Dry-run; not removed)")
             else:
                 if verbose:
-                    print(f"[NOT FOUND] {group}/{alias}")
+                    print(f"{ICON_WARNING} [NOT FOUND] {group}/{alias}")
         # Remove group dir if empty
         maybe_remove_empty_group_dir(group, dry_run=dry_run, verbose=verbose)
     if count == 0:
-        print("No cloned repositories found to delete.")
+        print(f"{ICON_WARNING} No cloned repositories found to delete.")
     else:
-        print(f"\nDelete complete. {count} repositories processed.")
+        print(f"\n{ICON_DONE} Delete complete. {count} repositories processed.")
 
 def pull_repo(group, alias, repo_dir, verbose=False, dry_run=False):
     """
@@ -229,7 +244,7 @@ def pull_repo(group, alias, repo_dir, verbose=False, dry_run=False):
                 ["git", "-C", repo_dir, "stash"], capture_output=True, text=True)
             stashed = "No local changes" not in stash.stdout
             if verbose:
-                print(f"[{group}/{alias}] Stashed local changes")
+                print(f"{ICON_STASH} [{group}/{alias}] Stashed local changes")
         # Pull latest
         pull = subprocess.run(
             ["git", "-C", repo_dir, "pull"], capture_output=True, text=True)
@@ -240,7 +255,7 @@ def pull_repo(group, alias, repo_dir, verbose=False, dry_run=False):
             subprocess.run(
                 ["git", "-C", repo_dir, "stash", "pop"], capture_output=True, text=True)
             if verbose:
-                print(f"[{group}/{alias}] Popped stash after pull")
+                print(f"{ICON_STASH} [{group}/{alias}] Popped stash after pull")
         return (alias, group, "SUCCESS", None)
     except Exception as e:
         return (alias, group, "FAIL", str(e))
@@ -250,7 +265,7 @@ def pull_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False,
     Pull all repositories (optionally, only in selected group), in parallel.
     """
     jobs = list(iter_repo_dirs(repo_data, selected_group))
-    print(f"Pulling {len(jobs)} repositories (parallel={max_workers})...\n")
+    print(f"{ICON_PULL} Pulling {len(jobs)} repositories (parallel={max_workers})...\n")
     results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_job = {
@@ -259,11 +274,20 @@ def pull_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False,
         }
         for future in as_completed(future_to_job):
             alias, group, status, msg = future.result()
-            results.append((alias, group, status))
-            print(f"[{status}] {group}/{alias}")
+            if status == "SUCCESS":
+                icon = ICON_SUCCESS
+            elif status == "FAIL":
+                icon = ICON_ERROR
+            elif status == "DRY-RUN":
+                icon = ICON_INFO
+            elif status == "NOT_FOUND":
+                icon = ICON_WARNING
+            else:
+                icon = ICON_INFO
+            print(f"{icon} {group}/{alias}")
             if msg and status == "FAIL":
-                print(f"    Error: {msg.strip()}")
-    print(f"\nPull complete. {sum(1 for r in results if r[2]=='SUCCESS' or r[2]=='DRY-RUN')} succeeded/dry-run, {sum(1 for r in results if r[2]=='FAIL')} failed.")
+                print(f"    {ICON_ERROR} Error: {msg.strip()}")
+    print(f"\n{ICON_DONE} Pull complete.")
 
 def list_stashed_repos(repo_data, selected_group=None, verbose=False):
     """
@@ -278,11 +302,11 @@ def list_stashed_repos(repo_data, selected_group=None, verbose=False):
             ["git", "-C", repo_dir, "stash", "list"],
             capture_output=True, text=True)
         if result.stdout.strip():
-            print(f"{group}/{alias} has stashes:")
+            print(f"{ICON_STASH} {group}/{alias} has stashes:")
             print(result.stdout)
             found = True
     if not found:
-        print("No stashed entries found in any repository.")
+        print(f"{ICON_INFO} No stashed entries found in any repository.")
 
 def clean_untracked_repo(group, alias, repo_dir, verbose=False, dry_run=False):
     """
@@ -305,7 +329,7 @@ def clean_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False
     Remove untracked files from all repositories.
     """
     jobs = list(iter_repo_dirs(repo_data, selected_group))
-    print(f"Cleaning untracked files in {len(jobs)} repositories (parallel={max_workers})...\n")
+    print(f"{ICON_CLEAN} Cleaning untracked files in {len(jobs)} repositories (parallel={max_workers})...\n")
     results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_job = {
@@ -314,11 +338,20 @@ def clean_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False
         }
         for future in as_completed(future_to_job):
             alias, group, status, msg = future.result()
-            results.append((alias, group, status))
-            print(f"[{status}] {group}/{alias}")
+            if status == "CLEANED":
+                icon = ICON_DONE
+            elif status == "FAIL":
+                icon = ICON_ERROR
+            elif status == "DRY-RUN":
+                icon = ICON_INFO
+            elif status == "NOT_FOUND":
+                icon = ICON_WARNING
+            else:
+                icon = ICON_INFO
+            print(f"{icon} {group}/{alias}")
             if msg and status == "FAIL":
-                print(f"    Error: {msg.strip()}")
-    print(f"\nClean complete. {sum(1 for r in results if r[2]=='CLEANED' or r[2]=='DRY-RUN')} cleaned/dry-run, {sum(1 for r in results if r[2]=='FAIL')} failed.")
+                print(f"    {ICON_ERROR} Error: {msg.strip()}")
+    print(f"\n{ICON_DONE} Clean complete.")
 
 def convert_utf16_to_utf8_in_repo(group, alias, repo_dir, verbose=False, dry_run=False):
     """
@@ -339,7 +372,7 @@ def convert_utf16_to_utf8_in_repo(group, alias, repo_dir, verbose=False, dry_run
                         if dry_run:
                             converted_files += 1
                             if verbose:
-                                print(f"(Dry-run) Would convert: {path}")
+                                print(f"{ICON_CONVERT} (Dry-run) Would convert: {path}")
                             continue
                         with open(path, "r", encoding="utf-16") as fi:
                             data = fi.read()
@@ -347,10 +380,10 @@ def convert_utf16_to_utf8_in_repo(group, alias, repo_dir, verbose=False, dry_run
                             fo.write(data)
                         converted_files += 1
                         if verbose:
-                            print(f"Converted: {path}")
+                            print(f"{ICON_CONVERT} Converted: {path}")
             except Exception as e:
                 if verbose:
-                    print(f"Failed to check/convert {path}: {e}")
+                    print(f"{ICON_WARNING} Failed to check/convert {path}: {e}")
     return (alias, group, "CONVERTED", converted_files)
 
 def convert_all_utf16(repo_data, selected_group=None, verbose=False, dry_run=False, max_workers=4):
@@ -358,7 +391,7 @@ def convert_all_utf16(repo_data, selected_group=None, verbose=False, dry_run=Fal
     Convert all UTF-16 files to UTF-8 in all repositories (parallel).
     """
     jobs = list(iter_repo_dirs(repo_data, selected_group))
-    print(f"Checking for UTF-16 files in {len(jobs)} repositories (parallel={max_workers})...\n")
+    print(f"{ICON_CONVERT} Checking for UTF-16 files in {len(jobs)} repositories (parallel={max_workers})...\n")
     results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_job = {
@@ -367,10 +400,10 @@ def convert_all_utf16(repo_data, selected_group=None, verbose=False, dry_run=Fal
         }
         for future in as_completed(future_to_job):
             alias, group, status, converted = future.result()
-            results.append((alias, group, status, converted))
-            print(f"[{status}] {group}/{alias} files converted: {converted}")
+            icon = ICON_DONE if converted else ICON_INFO
+            print(f"{icon} {group}/{alias} files converted: {converted}")
     total = sum(r[3] for r in results if isinstance(r[3], int))
-    print(f"\nUTF-16 to UTF-8 conversion complete. {total} files converted.")
+    print(f"\n{ICON_DONE} UTF-16 to UTF-8 conversion complete.")
 
 def main():
     """
@@ -461,18 +494,15 @@ def main():
         )
         sys.exit(0)
 
+    # Remaining unimplemented features (if any)
     if args.R:
-        print("Apply to all repository locations (to be implemented)")
+        print(f"{ICON_WARNING} Apply to all repository locations (to be implemented)")
     if args.r:
-        print(f"Selected repository location: {args.r} (to be implemented)")
+        print(f"{ICON_INFO} Selected repository location: {args.r} (to be implemented)")
     if args.v:
-        print("Verbose output (to be implemented)")
+        print(f"{ICON_INFO} Verbose output (to be implemented)")
     if args.n and not (args.c or args.d or args.p or args.x or args.u):
-        print("Dry-run mode (to be implemented)")
-    if args.u:
-        print("Convert UTF-16 files to UTF-8 (to be implemented)")
-    if args.s:
-        print("List stashed repositories (to be implemented)")
+        print(f"{ICON_INFO} Dry-run mode (to be implemented)")
 
 if __name__ == '__main__':
     main()
