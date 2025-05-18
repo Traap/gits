@@ -23,9 +23,13 @@ defineVariables() {
   utf_mode=false
   verbose=false
 
-  # Parallel job counters.
+  # Declare global associative arrays
+  declare -A job_pid_map
+  declare -A job_alias_map
+  declare -A job_status_map
+  job_index=0
   max_jobs=7
-  jobcount=0
+  job_count=0
 
   # Count of work done.
   cleaned=0
@@ -244,12 +248,30 @@ listRepositoryLocations() {
 }
 
 # -------------------------------------------------------------------------- }}}
+# {{{ Run Job
+
+runJob() {
+  local alias="$1"
+
+  status=$(eval "$@" &)
+
+  local pid=$!
+  job_pid_map[$job_index]=$pid
+  job_alias_map[$job_index]="$alias"
+  ((job_index++))
+}
+
+# -------------------------------------------------------------------------- }}}
 # {{{ Wait for job to finish.
 
 waitForJobs() {
-  while (( jobcount >= max_jobs )); do
-    wait -n
-    ((jobcount--))
+  for idx in "${!job_pid_map[@]}"; do
+    local pid=${job_pid_map[$idx]}
+    if wait "$pid"; then
+      job_status_map[$idx]=0
+    else
+      job_status_map[$idx]=$?
+    fi
   done
 }
 
@@ -351,24 +373,24 @@ processRepository() {
       local alias="${entry##* }"
       local target_dir="$basedir/$alias"
 
-      cloneRepository "$url" "$target_dir" &
+      runJob "cloneRepository $url $target_dir"
     done
 
   # Pull repositories.
   elif [[ $pull_mode == true ]]; then
     for dir in "$basedir"/*; do
       [[ -d "$dir" ]] || continue
-      pullRepository "$dir" &
+      runJob "pullRepository $dir"
     done
 
   # Delete repository location
   elif [[ $delete_mode == true ]]; then
-   delteRepositoryLocation "$basedir" &
+   runJob "delteRepositoryLocation $basedir"
 
   # Other repository actions.
   elif [[ $repo_mode == true ]]; then
     for dir in "$basedir"/*; do
-      processRepositoryActions "$dir" &
+      runJob "processRepositoryActions $dir"
     done
   fi
 }
@@ -456,7 +478,7 @@ main() {
 
   # Wait for all jobs to complete.
   waitForJobs
-  ((jobcount++))
+  ((job_count++))
 
   # Calculate elapsed time.
   endTimer
