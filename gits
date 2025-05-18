@@ -7,33 +7,34 @@ defineVariables() {
   REPO_CONFIG="$HOME/.config/gits/repo_locations"
 
   # Repositories defefined in REPO_CONFIG
-  repo_args=()
+  repo_names=()
   repo_location_names=()
 
   # Command line flags.
-  help=false
-  list=false
   all_mode=false
+  clean_mode=false
   clone_mode=false
   delete_mode=false
-  repo_mode=false
-  pull_mode=false
   dry_run=false
-  verbose=false
-  clean_mode=false
-  utf_mode=false
+  help=false
+  list=false
+  pull_mode=false
+  repo_mode=false
   stash_list_mode=false
+  utf_mode=false
+  verbose=false
 
   # Parallel job counters.
   max_jobs=7
   jobcount=0
 
   # Count of work done.
-  cloned=0
-  updated=0
-  skipped=0
   cleaned=0
+  cloned=0
   converted=0
+  deleted=0
+  pulled=0
+  skipped=0
   stashes=0
 }
 
@@ -44,6 +45,7 @@ defineIcons() {
   ICON_CLEAN="🧹"
   ICON_CLONE="➡️"
   ICON_CONVERT="🔄"
+  ICON_DELETE="❌"
   ICON_DONE="✅"
   ICON_ERROR="❌"
   ICON_INFO="ℹ️"
@@ -83,15 +85,33 @@ endTimer() {
 # {{{ Report final Status
 
 reportStatus() {
-  if [[ $clone_mode == true || $pull_mode == true ]]; then
-    echo
-    echo_info "Summary:"
-    echo "$ICON_CLONE Cloned : $cloned"
-    echo "$ICON_PULL Updated: $updated"
-    echo "$ICON_WARNING Skipped: $skipped"
-    echo
-  fi
+  echo
+  echo_info "Summary:"
 
+  if [[ $clean_mode == true ]]; then
+    echo "$ICON_CLEAN Cleaned : $cleaned"
+
+  elif [[ $clone_mode == true ]]; then
+    echo "$ICON_CLONE Cloned : $cloned"
+    echo "$ICON_WARNING Skipped: $skipped"
+
+  elif [[ $convert_mode == true ]]; then
+    echo "$ICON_CONVERT Convert : $converted"
+
+  elif [[ $delete_mode == true ]]; then
+    echo "$ICON_DELETE Deleted : $deleted"
+
+  elif [[ $pull_mode == true ]]; then
+    echo "$ICON_PULL Pulled : $pulled"
+    echo "$ICON_WARNING Skipped: $skipped"
+
+  elif [[ $stash_list_mode == true ]]; then
+    echo "$ICON_STASH Stashes : $stashes"
+
+  elif [[ $utf_mode == true ]]; then
+    echo "$ICON_CONVERT Converted : $converted"
+  fi
+  echo
   echo_success "$ICON_DONE Done."
   echo_info "$ICON_TIME Elapsed time: ${minutes}m ${seconds}s"
 }
@@ -147,7 +167,7 @@ usage() {
 # -------------------------------------------------------------------------- }}}
 # {{{ Parse Arguments
 
-parseArguments() {
+validateArguments() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       -R) all_mode=true ;;
@@ -162,7 +182,7 @@ parseArguments() {
       -u) utf_mode=true ;;
       -v) verbose=true ;;
       -x) clean_mode=true ;;
-      *) repo_args+=("$1") ;;
+      *) repo_names+=("$1") ;;
     esac
     shift
   done
@@ -225,6 +245,16 @@ listRepositoryLocations() {
 }
 
 # -------------------------------------------------------------------------- }}}
+# {{{ Run a job and return its completion status.
+
+runJob() {
+  status=$(eval "$@" &)
+  waitForJobs
+  ((jobcount++))
+  echo $status
+}
+
+# -------------------------------------------------------------------------- }}}
 # {{{ Wait for job to finish.
 
 waitForJobs() {
@@ -244,7 +274,8 @@ cloneRepository() {
   if [[ ! -d "$target_dir/.git" ]]; then
     echo_info "$ICON_CLONE Cloning $(basename "$target_dir")"
     if [[ $dry_run == false ]]; then
-      if git clone "$url" "$target_dir" &>/dev/null; then
+      status=$(runJob "git clone $url $target_dir &>/dev/null")
+      if [[ -z $status ]]; then
         ((cloned++))
         echo_success "$ICON_SUCCESS Cloned: $(basename "$target_dir")"
       else
@@ -263,14 +294,15 @@ cloneRepository() {
 delteRepositoryLocation() {
   local basedir="$1"
   if [[ $dry_run == false ]]; then
+    ((deleted++))
     if [[ $verbose == true ]]; then
-      echo_warn "$ICON_CLEAN Deleting $basedir"
+      echo_warn "$ICON_DELETE Deleting $basedir"
       rm -rfv $basedir
     else
       rm -rf $basedir
     fi
   else
-    echo_warn "$ICON_CLEAN Would delete $basedir"
+    echo_warn "$ICON_DELETE Would delete $basedir"
   fi
 }
 
@@ -293,11 +325,12 @@ pullRepository() {
           echo "$dirty"
         fi
         (cd "$dir" && git stash push -u -m "gits auto-stash" &>/dev/null)
+        ((stashes++))
       fi
 
       (cd "$dir" && git pull &>/dev/null)
 
-      ((updated++))
+      ((pulled++))
     fi
   else
     echo_warn "$ICON_WARNING Skipping non-repo: $(basename "$dir")"
@@ -326,41 +359,31 @@ processRepository() {
 
     # Repos referenced by repos_location_name.
     local repos=("${!repos_location_name}")
-
     for entry in "${repos[@]}"; do
       local url="${entry%% *}"
       local alias="${entry##* }"
       local target_dir="$basedir/$alias"
 
-      cloneRepository "$url" "$target_dir" &
-      waitForJobs
-      ((jobcount++))
+      cloneRepository "$url" "$target_dir"
     done
 
   # Pull repositories.
   elif [[ $pull_mode == true ]]; then
     for dir in "$basedir"/*; do
       [[ -d "$dir" ]] || continue
-
-      pullRepository "$dir" &
-      waitForJobs
-      ((jobcount++))
+      status=$(runJob "pullRepository $dir")
     done
 
   # Delete repository location
   elif [[ $delete_mode == true ]]; then
-   delteRepositoryLocation "$basedir" &
-   waitForJobs
-   ((jobcount++))
+   status=$(runJob "delteRepositoryLocation $basedir")
 
   # Other repository actions.
   elif [[ $repo_mode == true ]]; then
     for dir in "$basedir"/*; do
       [[ -d "$dir" ]] || continue
 
-      processRepositoryActions "$dir" &
-      waitForJobs
-      ((jobcount++))
+      status=$(runJob "processRepositoryActions $dir")
     done
   fi
 }
@@ -428,20 +451,20 @@ main() {
   extractRepoLocationNames
 
   # Validate user request.
-  parseArguments "$@"
+  validateArguments "$@"
 
   # Process user requests.
   if [[ $all_mode == false ]]; then
-    for location in "${repo_args[@]}"; do
-      processRepository "$location"
+    for rn in "${repo_names[@]}"; do
+      processRepository "$rn"
     done
   else
     echo_info "$ICON_INFO All mode started."
     for rln in "${repo_location_names[@]}"; do
       echo_info "$ICON_CLONE Processing : $rln"
-      repo_args+=("$rln")
-      for location in "${repo_args[@]}"; do
-        processRepository "$location"
+      repo_names+=("$rln")
+      for repo in "${repo_names[@]}"; do
+        processRepository "$repo"
       done
     done
   fi
