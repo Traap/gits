@@ -20,12 +20,12 @@
 
 ### Use
 ```console
-Usage: gits [-h -l -R] [-r name -d -s -u -v -x] [-c | -p] [-n]
+Usage: gits [-h -l -R] [-r name -d -s -u -x] [-c | -p] [-n -v]
 
 Options:
   -h  Show help.
   -l  List repository locations.
-  -R  Apply modifiers to repository locations.
+  -R  Apply modifiers to repository locations (overrides -r).
 
 Repository Locations:
   -r  name
@@ -36,12 +36,13 @@ Modifiers:
   -v  Verbose output.
   -x  Clean untracked files.
 
-Mutually exclusive actions
+Mutually exclusive actions:
   -c  Clone repositories in repository locations array.
   -p  Pull repositories in repository location array with safe stashing.
 
-Dry-run
-  -n  Dry-run (simulate actions)
+Miscellaneous:
+  -n  Dry-run (simulate actions).
+  -v  Verbose output.
 ```
 
 ### Example Respository Location File

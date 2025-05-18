@@ -140,12 +140,12 @@ extractRepoLocationNames() {
 
 usage() {
   echo
-  echo_info "Usage: gits [-h -l -R] [-r name -d -s -u -v -x] [-c | -p] [-n]"
+  echo_info "Usage: gits [-h -l -R] [-r name -d -s -u -x] [-c | -p] [-n -v]"
   echo
   echo "Options:"
   echo "  -h  Show help."
   echo "  -l  List repository locations."
-  echo "  -R  Apply modifiers to repository locations."
+  echo "  -R  Apply modifiers to repository locations (overrides -r)."
   echo
   echo "Repository Locations:"
   echo "  -r  name "
@@ -153,15 +153,15 @@ usage() {
   echo "  -d  Delete repository location."
   echo "  -s  List repositories with stash entries."
   echo "  -u  Convert UTF-16 files to UTF-8."
-  echo "  -v  Verbose output."
   echo "  -x  Clean untracked files."
   echo
-  echo "Mutually exclusive actions"
+  echo "Mutually exclusive actions:"
   echo "  -c  Clone repositories in repository locations array."
   echo "  -p  Pull repositories in repository location array with safe stashing."
   echo
-  echo "Dry-run"
-  echo "  -n  Dry-run (simulate actions)"
+  echo "Miscellaneous:"
+  echo "  -n  Dry-run (simulate actions)."
+  echo "  -v  Verbose output."
 }
 
 # -------------------------------------------------------------------------- }}}
@@ -294,7 +294,6 @@ cloneRepository() {
 delteRepositoryLocation() {
   local basedir="$1"
   if [[ $dry_run == false ]]; then
-    ((deleted++))
     if [[ $verbose == true ]]; then
       echo_warn "$ICON_DELETE Deleting $basedir"
       rm -rfv $basedir
@@ -311,6 +310,7 @@ delteRepositoryLocation() {
 
 pullRepository() {
   local dir="$1"
+  local status=0
 
   if [[ -d "$dir/.git" ]]; then
     echo_info "$ICON_PULL Pulling $(basename "$dir")"
@@ -325,17 +325,17 @@ pullRepository() {
           echo "$dirty"
         fi
         (cd "$dir" && git stash push -u -m "gits auto-stash" &>/dev/null)
-        ((stashes++))
+        status=$((status++))
       fi
 
       (cd "$dir" && git pull &>/dev/null)
-
-      ((pulled++))
+      status=$((status++))
     fi
   else
     echo_warn "$ICON_WARNING Skipping non-repo: $(basename "$dir")"
-    ((skipped++))
+    status=0
   fi
+  echo $status
 }
 
 # -------------------------------------------------------------------------- }}}
@@ -363,7 +363,6 @@ processRepository() {
       local url="${entry%% *}"
       local alias="${entry##* }"
       local target_dir="$basedir/$alias"
-
       cloneRepository "$url" "$target_dir"
     done
 
@@ -372,17 +371,25 @@ processRepository() {
     for dir in "$basedir"/*; do
       [[ -d "$dir" ]] || continue
       status=$(runJob "pullRepository $dir")
+      case $status in
+        0) ((skipped++)) ;;
+        1) ((pulled++)) ;;
+        2) ((stashed++)) ;;
+        *) ((pulled++)) ;;
+      esac
     done
 
   # Delete repository location
-  elif [[ $delete_mode == true ]]; then
+  elif [kk[ $delete_mode == true ]]; then
    status=$(runJob "delteRepositoryLocation $basedir")
+   if [[ -z $status ]]; then
+     ((deleted++))
+   fi
 
   # Other repository actions.
   elif [[ $repo_mode == true ]]; then
     for dir in "$basedir"/*; do
       [[ -d "$dir" ]] || continue
-
       status=$(runJob "processRepositoryActions $dir")
     done
   fi
