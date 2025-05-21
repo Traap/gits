@@ -1,4 +1,4 @@
-### Gits
+jjjjjits
 
 **Gits** is a simple tool to manage groups of git repositories.
 
@@ -7,6 +7,21 @@
 - Pull updates across repositories
 - Define custom repo sets using an external config
 - Compact CLI with short options (`-c`, `-r`, etc.)
+
+### Dependences
+- apt or pacman
+- Python3
+- pip3
+
+#### Python packages
+- argparse
+- sys
+- os
+- yaml
+- subprocess
+- shutil
+- concurrent.features
+- ThreadPoolExecutor
 
 ### Installation
 ```bash
@@ -46,6 +61,8 @@ Miscellaneous:
 ```
 
 ### Example Respository Location File
+'''$HOME/.config/gits/repository_locations.yml'''
+
 ```bash
 repo_editor=(
   "https://github.com/folke/lazy.nvim.git lazy.nvim"
