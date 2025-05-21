@@ -42,7 +42,7 @@ def load_repos_yaml(filepath):
     if not os.path.exists(filepath):
         print(f"{ICON_ERROR} Repo locations file not found: {filepath}")
         sys.exit(1)
-    with open(filerath, 'r') as f:
+    with open(filepath, 'r') as f:
         return yaml.safe_load(f)
 
 def validate_repo_data(repo_data):
