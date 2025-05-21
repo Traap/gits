@@ -3,6 +3,7 @@
 gits.py - Python version of 'gits' repository management script, with icons.
 
 Features:
+  - Pre-flight YAML validation (clear errors for malformed config)
   - Clone, delete, pull, clean, convert encoding, list stashes, and more
   - All repo directories are in $HOME/group/alias
   - Parallel actions, dry-run and verbose support
@@ -20,10 +21,7 @@ import subprocess
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# --- Configuraiton file.
-REPOSITORY_LOCATIONS_PATH = os.path.expanduser("~/.config/gits/repository_locations.yml")
-
-# ---- ICONS
+# ---- ICONS ----
 ICON_CLEAN    = "🧹"
 ICON_CLONE    = "➡️"
 ICON_CONVERT  = "🔄"
@@ -37,7 +35,6 @@ ICON_SUCCESS  = "✅"
 ICON_TIME     = "⏱️"
 ICON_WARNING  = "⚠️"
 
-
 def load_repos_yaml(filepath):
     """
     Load the repository locations YAML file.
@@ -47,6 +44,21 @@ def load_repos_yaml(filepath):
         sys.exit(1)
     with open(filepath, 'r') as f:
         return yaml.safe_load(f)
+
+def validate_repo_data(repo_data):
+    """
+    Ensures every entry in repo_data is a dict with 'alias' and 'url' keys.
+    Raises ValueError if not.
+    """
+    for group, entries in repo_data.items():
+        if not isinstance(entries, list):
+            raise ValueError(f"Group '{group}' is not a list.")
+        for idx, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                raise ValueError(f"Entry {idx+1} in group '{group}' is not a dict: {entry}")
+            missing = [key for key in ("alias", "url") if key not in entry]
+            if missing:
+                raise ValueError(f"Entry {idx+1} in group '{group}' missing {', '.join(missing)}: {entry}")
 
 def print_help():
     """
@@ -158,43 +170,6 @@ def clone_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False
                 print(f"    {ICON_WARNING} Skipped: {msg.strip()}")
     print(f"\n{ICON_DONE} Clone complete.")
 
-def find_possible_clone_dirs(group, alias):
-    """
-    Return a list of all plausible repo dirs (including accidental CWD clones).
-    """
-    home = os.path.expanduser("~")
-    candidates = [
-        os.path.join(home, group, alias),
-        os.path.join(".", group, alias),
-        os.path.join(".", "~", group, alias),
-        os.path.join(home, alias),
-        os.path.join(".", alias),
-        os.path.join(".", "~", alias),
-    ]
-    found = []
-    for path in candidates:
-        if os.path.isdir(path):
-            found.append(os.path.abspath(path))
-    return found
-
-def maybe_remove_empty_group_dir(group, dry_run=False, verbose=False):
-    """
-    Remove the group dir from $HOME if it is empty after deletions.
-    """
-    home = os.path.expanduser("~")
-    group_dir = os.path.join(home, group)
-    try:
-        if os.path.isdir(group_dir) and not os.listdir(group_dir):
-            if not dry_run:
-                os.rmdir(group_dir)
-                print(f"{ICON_DONE} Removed empty group directory: {group_dir}")
-            else:
-                print(f"{ICON_INFO} (Dry-run) Would remove empty group directory: {group_dir}")
-        elif verbose and os.path.isdir(group_dir):
-            print(f"{ICON_INFO} Group directory not empty: {group_dir}")
-    except Exception as e:
-        print(f"{ICON_WARNING} Warning: Could not remove group directory {group_dir}: {e}")
-
 def delete_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False):
     """
     Remove the entire group directory for each group in repo_data.
@@ -234,24 +209,20 @@ def pull_repo(group, alias, repo_dir, verbose=False, dry_run=False):
     if dry_run:
         return (alias, group, "DRY-RUN", None)
     try:
-        # Check for uncommitted changes
         changed = subprocess.run(
             ["git", "-C", repo_dir, "status", "--porcelain"],
             capture_output=True, text=True)
         stashed = False
         if changed.stdout.strip():
-            # Stash changes
             stash = subprocess.run(
                 ["git", "-C", repo_dir, "stash"], capture_output=True, text=True)
             stashed = "No local changes" not in stash.stdout
             if verbose:
                 print(f"{ICON_STASH} [{group}/{alias}] Stashed local changes")
-        # Pull latest
         pull = subprocess.run(
             ["git", "-C", repo_dir, "pull"], capture_output=True, text=True)
         if pull.returncode != 0:
             return (alias, group, "FAIL", pull.stderr)
-        # Restore stash if we made one
         if stashed:
             subprocess.run(
                 ["git", "-C", repo_dir, "stash", "pop"], capture_output=True, text=True)
@@ -369,7 +340,6 @@ def convert_utf16_to_utf8_in_repo(group, alias, repo_dir, verbose=False, dry_run
                 with open(path, "rb") as f:
                     raw = f.read(4)
                     if raw.startswith(b'\xff\xfe') or raw.startswith(b'\xfe\xff'):
-                        # Probably UTF-16 BOM
                         if dry_run:
                             converted_files += 1
                             if verbose:
@@ -426,6 +396,7 @@ def main():
     parser.add_argument('-n', action='store_true')
     args = parser.parse_args()
 
+    repo_locations_path = os.path.expanduser("~/.config/gits/repo_locations.yml")
 
     if args.h:
         print_help()
@@ -433,7 +404,12 @@ def main():
 
     repo_data = None
     if args.l or args.R or args.r or args.c or args.p or args.d or args.s or args.u or args.x:
-        repo_data = load_repos_yaml(REPOSITORY_LOCATIONS_PATH)
+        repo_data = load_repos_yaml(repo_locations_path)
+        try:
+            validate_repo_data(repo_data)
+        except ValueError as err:
+            print(f"{ICON_ERROR} YAML validation error: {err}")
+            sys.exit(1)
 
     if args.l:
         list_repos(repo_data)
