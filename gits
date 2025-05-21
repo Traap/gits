@@ -42,7 +42,7 @@ def load_repos_yaml(filepath):
     if not os.path.exists(filepath):
         print(f"{ICON_ERROR} Repo locations file not found: {filepath}")
         sys.exit(1)
-    with open(filepath, 'r') as f:
+    with open(filerath, 'r') as f:
         return yaml.safe_load(f)
 
 def validate_repo_data(repo_data):
@@ -396,7 +396,7 @@ def main():
     parser.add_argument('-n', action='store_true')
     args = parser.parse_args()
 
-    repo_locations_path = os.path.expanduser("~/.config/gits/repo_locations.yml")
+    repository_locations_path = os.path.expanduser("~/.config/gits/repository_locations.yml")
 
     if args.h:
         print_help()
@@ -404,7 +404,7 @@ def main():
 
     repo_data = None
     if args.l or args.R or args.r or args.c or args.p or args.d or args.s or args.u or args.x:
-        repo_data = load_repos_yaml(repo_locations_path)
+        repo_data = load_repos_yaml(repository_locations_path)
         try:
             validate_repo_data(repo_data)
         except ValueError as err:
