@@ -20,7 +20,10 @@ import subprocess
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# ---- ICONS ----
+# --- Configuraiton file.
+REPOSITORY_LOCATIONS_PATH = os.path.expanduser("~/.config/gits/repository_locations.yml")
+
+# ---- ICONS
 ICON_CLEAN    = "🧹"
 ICON_CLONE    = "➡️"
 ICON_CONVERT  = "🔄"
@@ -33,6 +36,7 @@ ICON_STASH    = "📦"
 ICON_SUCCESS  = "✅"
 ICON_TIME     = "⏱️"
 ICON_WARNING  = "⚠️"
+
 
 def load_repos_yaml(filepath):
     """
@@ -422,7 +426,6 @@ def main():
     parser.add_argument('-n', action='store_true')
     args = parser.parse_args()
 
-    repo_locations_path = os.path.expanduser("~/.config/gits/repo_locations.yml")
 
     if args.h:
         print_help()
@@ -430,7 +433,7 @@ def main():
 
     repo_data = None
     if args.l or args.R or args.r or args.c or args.p or args.d or args.s or args.u or args.x:
-        repo_data = load_repos_yaml(repo_locations_path)
+        repo_data = load_repos_yaml(REPOSITORY_LOCATIONS_PATH)
 
     if args.l:
         list_repos(repo_data)
