@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# {{{ Header notes.
+
 """
 gits.py - Python version of 'gits' repository management script, with icons.
 
@@ -13,6 +15,9 @@ Author: Traap
 Date: 2025-05-18
 """
 
+# -------------------------------------------------------------------------- }}}
+# {{{ Import statements
+
 import argparse
 import sys
 import os
@@ -21,7 +26,9 @@ import subprocess
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# ---- ICONS ----
+# -------------------------------------------------------------------------- }}}
+# {{{ ICONS
+
 ICON_CLEAN    = "🧹"
 ICON_CLONE    = "➡️"
 ICON_CONVERT  = "🔄"
@@ -35,6 +42,46 @@ ICON_SUCCESS  = "✅"
 ICON_TIME     = "⏱️"
 ICON_WARNING  = "⚠️"
 
+# -------------------------------------------------------------------------- }}}
+# {{{ Options class holds all CLI options.
+
+class Options:
+    """
+    Holds all CLI options parsed from argparse.
+    Makes it easy to pass all user settings to helpers.
+    """
+    def __init__(self, args):
+        # Copy all argparse fields into this class
+        for k, v in vars(args).items():
+            setattr(self, k, v)
+
+#  ------------------------------------------------------------------------- }}}
+# {{{ Parse arguments
+
+def parse_args():
+    """
+    Set up argument parser for CLI options and return the parsed args.
+    """
+    parser = argparse.ArgumentParser(add_help=False, usage=argparse.SUPPRESS)
+    parser.add_argument('-h', action='store_true')
+    parser.add_argument('-l', action='store_true')
+    parser.add_argument('-R', action='store_true')
+    parser.add_argument('-r', metavar='name', type=str)
+    parser.add_argument('-d', action='store_true')
+    parser.add_argument('-s', action='store_true')
+    parser.add_argument('-u', action='store_true')
+    parser.add_argument('-v', action='store_true')
+    parser.add_argument('-x', action='store_true')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-c', action='store_true')
+    group.add_argument('-p', action='store_true')
+    parser.add_argument('-n', action='store_true')
+    args = parser.parse_args()
+    return args
+
+# -------------------------------------------------------------------------- }}}
+# {{{ Load Repository Yaml File
+
 def load_repos_yaml(filepath):
     """
     Load the repository locations YAML file.
@@ -44,6 +91,9 @@ def load_repos_yaml(filepath):
         sys.exit(1)
     with open(filepath, 'r') as f:
         return yaml.safe_load(f)
+
+#  ------------------------------------------------------------------------- }}}
+# {{{ Validate Repository Yaml File
 
 def validate_repo_data(repo_data):
     """
@@ -60,33 +110,34 @@ def validate_repo_data(repo_data):
             if missing:
                 raise ValueError(f"Entry {idx+1} in group '{group}' missing {', '.join(missing)}: {entry}")
 
+# -------------------------------------------------------------------------- }}}
+# {{{ Print help.
+
 def print_help():
     """
-    Show help text, falling back to CLI usage if gits-help.txt not found.
+    Show CLI usage.
     """
-    help_path = os.path.join(os.path.dirname(__file__), "gits-help.txt")
-    if os.path.isfile(help_path):
-        with open(help_path) as f:
-            print(f.read())
-    else:
-        print(f"{ICON_INFO} Usage: gits [-h -l -R] [-r name -d -s -u -v -x] [-c | -p] [-n]\n")
-        print("Options:")
-        print("  -h          Show help")
-        print("  -l          List repository locations")
-        print("  -R          Apply modifiers to repository locations")
-        print("Repository Locations")
-        print("  -r name")
-        print("Modifiers")
-        print("  -d          Delete repository location")
-        print("  -s          List repositories with stash entries")
-        print("  -u          Convert UTF-16 files to UTF-8")
-        print("  -v          Verbose output")
-        print("  -x          Clean untracked files")
-        print("Mutually exclusive actions")
-        print("  -c          Clone repositories defined in repository locations array")
-        print("  -p          Pull repositories with safe stashing")
-        print("Dry-run")
-        print("  -n          Dry-run (simulate actions)")
+    print(f"{ICON_INFO} Usage: gits [-h -l -R] [-r name -d -s -u -v -x] [-c | -p] [-n]\n")
+    print("Options:")
+    print("  -h          Show help")
+    print("  -l          List repository locations")
+    print("  -R          Apply modifiers to repository locations")
+    print("Repository Locations")
+    print("  -r name")
+    print("Modifiers")
+    print("  -d          Delete repository location")
+    print("  -s          List repositories with stash entries")
+    print("  -u          Convert UTF-16 files to UTF-8")
+    print("  -v          Verbose output")
+    print("  -x          Clean untracked files")
+    print("Mutually exclusive actions")
+    print("  -c          Clone repositories defined in repository locations array")
+    print("  -p          Pull repositories with safe stashing")
+    print("Dry-run")
+    print("  -n          Dry-run (simulate actions)")
+
+# -------------------------------------------------------------------------- }}}
+# {{{ List Repositories
 
 def list_repos(repo_data):
     """
@@ -97,18 +148,24 @@ def list_repos(repo_data):
         print(f"  {ICON_INFO} {group}")
     print()
 
-def iter_repo_dirs(repo_data, selected_group=None):
+# -------------------------------------------------------------------------- }}}
+# {{{ Iterate Over Repositories Directories
+
+def iter_repo_dirs(repo_data, options):
     """
     Yield (group, alias, repo_dir) for each repo in (optionally) selected group.
     """
     home = os.path.expanduser("~")
     for group, entries in repo_data.items():
-        if selected_group and group != selected_group:
+        if options.r and group != options.r:
             continue
         for entry in entries:
             alias = entry["alias"]
             repo_dir = os.path.join(home, group, alias)
             yield group, alias, repo_dir
+
+# -------------------------------------------------------------------------- }}}
+# {{{ Clone a repository
 
 def clone_repo(url, alias, group, verbose=False, dry_run=False):
     """
@@ -133,13 +190,17 @@ def clone_repo(url, alias, group, verbose=False, dry_run=False):
     except Exception as e:
         return (alias, url, dest_dir, "FAIL", -1, str(e))
 
-def clone_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False, max_workers=4):
+# -------------------------------------------------------------------------- }}}
+# {{{ Clone all repository
+
+def clone_all_repos(repo_data, options):
     """
     Clone all repositories (optionally, only in selected group), in parallel.
     """
+    max_workers = 4
     jobs = []
     for group, entries in repo_data.items():
-        if selected_group and group != selected_group:
+        if options.r and group != options.r:
             continue
         for entry in entries:
             jobs.append((entry["url"], entry["alias"], group))
@@ -147,7 +208,7 @@ def clone_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False
     results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_job = {
-            executor.submit(clone_repo, url, alias, group, verbose, dry_run): (alias, url, group)
+            executor.submit(clone_repo, url, alias, group, options.v, options.n): (alias, url, group)
             for url, alias, group in jobs
         }
         for future in as_completed(future_to_job):
@@ -170,7 +231,10 @@ def clone_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False
                 print(f"    {ICON_WARNING} Skipped: {msg.strip()}")
     print(f"\n{ICON_DONE} Clone complete.")
 
-def delete_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False):
+# -------------------------------------------------------------------------- }}}
+# {{{ Delete all repository
+
+def delete_all_repos(repo_data, options):
     """
     Remove the entire group directory for each group in repo_data.
     (Deletes ~/group and all contents, with icons.)
@@ -178,13 +242,13 @@ def delete_all_repos(repo_data, selected_group=None, verbose=False, dry_run=Fals
     home = os.path.expanduser("~")
     count = 0
     for group in repo_data.keys():
-        if selected_group and group != selected_group:
+        if options.r and group != options.r:
             continue
         group_dir = os.path.join(home, group)
         if os.path.isdir(group_dir):
             print(f"{ICON_DELETE} {group_dir}")
             count += 1
-            if not dry_run:
+            if not options.n:
                 try:
                     shutil.rmtree(group_dir)
                     print(f"    {ICON_DONE} Removed.")
@@ -193,12 +257,15 @@ def delete_all_repos(repo_data, selected_group=None, verbose=False, dry_run=Fals
             else:
                 print(f"    {ICON_INFO} (Dry-run; not removed)")
         else:
-            if verbose:
+            if options.v:
                 print(f"{ICON_WARNING} [NOT FOUND] {group_dir}")
     if count == 0:
         print(f"{ICON_WARNING} No repository groups found to delete.")
     else:
         print(f"\n{ICON_DONE} Delete complete. {count} group(s) processed.")
+
+# -------------------------------------------------------------------------- }}}
+# {{{ Pull a repository
 
 def pull_repo(group, alias, repo_dir, verbose=False, dry_run=False):
     """
@@ -232,16 +299,20 @@ def pull_repo(group, alias, repo_dir, verbose=False, dry_run=False):
     except Exception as e:
         return (alias, group, "FAIL", str(e))
 
-def pull_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False, max_workers=4):
+# -------------------------------------------------------------------------- }}}
+# {{{ Pull all repositories
+
+def pull_all_repos(repo_data, options):
     """
     Pull all repositories (optionally, only in selected group), in parallel.
     """
-    jobs = list(iter_repo_dirs(repo_data, selected_group))
+    max_workers = 4
+    jobs = list(iter_repo_dirs(repo_data, options))
     print(f"{ICON_PULL} Pulling {len(jobs)} repositories (parallel={max_workers})...\n")
     results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_job = {
-            executor.submit(pull_repo, group, alias, repo_dir, verbose, dry_run): (alias, group)
+            executor.submit(pull_repo, group, alias, repo_dir, options.v, options.n): (alias, group)
             for group, alias, repo_dir in jobs
         }
         for future in as_completed(future_to_job):
@@ -261,11 +332,14 @@ def pull_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False,
                 print(f"    {ICON_ERROR} Error: {msg.strip()}")
     print(f"\n{ICON_DONE} Pull complete.")
 
-def list_stashed_repos(repo_data, selected_group=None, verbose=False):
+# -------------------------------------------------------------------------- }}}
+# {{{ List repositories with stashes.
+
+def list_stashed_repos(repo_data, options):
     """
     List repositories which have stash entries.
     """
-    jobs = list(iter_repo_dirs(repo_data, selected_group))
+    jobs = list(iter_repo_dirs(repo_data, options))
     found = False
     for group, alias, repo_dir in jobs:
         if not os.path.isdir(repo_dir):
@@ -279,6 +353,9 @@ def list_stashed_repos(repo_data, selected_group=None, verbose=False):
             found = True
     if not found:
         print(f"{ICON_INFO} No stashed entries found in any repository.")
+
+# -------------------------------------------------------------------------- }}}
+# {{{ Clean a repository untracked files.
 
 def clean_untracked_repo(group, alias, repo_dir, verbose=False, dry_run=False):
     """
@@ -296,16 +373,20 @@ def clean_untracked_repo(group, alias, repo_dir, verbose=False, dry_run=False):
     else:
         return (alias, group, "FAIL", result.stderr)
 
-def clean_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False, max_workers=4):
+# -------------------------------------------------------------------------- }}}
+# {{{ Clean all repositories untracked files.
+
+def clean_all_repos(repo_data, options):
     """
     Remove untracked files from all repositories.
     """
-    jobs = list(iter_repo_dirs(repo_data, selected_group))
+    max_workers = 4
+    jobs = list(iter_repo_dirs(repo_data, options))
     print(f"{ICON_CLEAN} Cleaning untracked files in {len(jobs)} repositories (parallel={max_workers})...\n")
     results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_job = {
-            executor.submit(clean_untracked_repo, group, alias, repo_dir, verbose, dry_run): (alias, group)
+            executor.submit(clean_untracked_repo, group, alias, repo_dir, options.v, options.n): (alias, group)
             for group, alias, repo_dir in jobs
         }
         for future in as_completed(future_to_job):
@@ -324,6 +405,9 @@ def clean_all_repos(repo_data, selected_group=None, verbose=False, dry_run=False
             if msg and status == "FAIL":
                 print(f"    {ICON_ERROR} Error: {msg.strip()}")
     print(f"\n{ICON_DONE} Clean complete.")
+
+# -------------------------------------------------------------------------- }}}
+# {{{ Convert uft16 to utf8 files in a repository.
 
 def convert_utf16_to_utf8_in_repo(group, alias, repo_dir, verbose=False, dry_run=False):
     """
@@ -357,16 +441,21 @@ def convert_utf16_to_utf8_in_repo(group, alias, repo_dir, verbose=False, dry_run
                     print(f"{ICON_WARNING} Failed to check/convert {path}: {e}")
     return (alias, group, "CONVERTED", converted_files)
 
-def convert_all_utf16(repo_data, selected_group=None, verbose=False, dry_run=False, max_workers=4):
+# -------------------------------------------------------------------------- }}}
+# {{{ Convert uft16 to utf8 files in all repository.
+
+
+def convert_all_utf16(repo_data, options):
     """
     Convert all UTF-16 files to UTF-8 in all repositories (parallel).
     """
-    jobs = list(iter_repo_dirs(repo_data, selected_group))
+    max_workers = 4
+    jobs = list(iter_repo_dirs(repo_data, options))
     print(f"{ICON_CONVERT} Checking for UTF-16 files in {len(jobs)} repositories (parallel={max_workers})...\n")
     results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_job = {
-            executor.submit(convert_utf16_to_utf8_in_repo, group, alias, repo_dir, verbose, dry_run): (alias, group)
+            executor.submit(convert_utf16_to_utf8_in_repo, group, alias, repo_dir, options.v, options.n): (alias, group)
             for group, alias, repo_dir in jobs
         }
         for future in as_completed(future_to_job):
@@ -376,110 +465,76 @@ def convert_all_utf16(repo_data, selected_group=None, verbose=False, dry_run=Fal
     total = sum(r[3] for r in results if isinstance(r[3], int))
     print(f"\n{ICON_DONE} UTF-16 to UTF-8 conversion complete.")
 
-def main():
-    """
-    Parse arguments and dispatch to feature.
-    """
-    parser = argparse.ArgumentParser(add_help=False, usage=argparse.SUPPRESS)
-    parser.add_argument('-h', action='store_true')
-    parser.add_argument('-l', action='store_true')
-    parser.add_argument('-R', action='store_true')
-    parser.add_argument('-r', metavar='name', type=str)
-    parser.add_argument('-d', action='store_true')
-    parser.add_argument('-s', action='store_true')
-    parser.add_argument('-u', action='store_true')
-    parser.add_argument('-v', action='store_true')
-    parser.add_argument('-x', action='store_true')
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument('-c', action='store_true')
-    group.add_argument('-p', action='store_true')
-    parser.add_argument('-n', action='store_true')
-    args = parser.parse_args()
+# -------------------------------------------------------------------------- }}}
+# {{{ Load and validae repository location file.
 
+def load_and_validate_repo_data():
+    """
+    Loads and validates the repository_locations.yml config file.
+    Exits with a clear error message if missing or malformed.
+    Returns:
+        repo_data (dict): Validated repo data from YAML.
+    """
     repository_locations_path = os.path.expanduser("~/.config/gits/repository_locations.yml")
+    repo_data = load_repos_yaml(repository_locations_path)
+    try:
+        validate_repo_data(repo_data)
+    except ValueError as err:
+        print(f"{ICON_ERROR} YAML validation error: {err}")
+        sys.exit(1)
+    return repo_data
 
-    if args.h:
-        print_help()
-        sys.exit(0)
+# -------------------------------------------------------------------------- }}}
+# {{{ CLI dispatch with match/case
 
-    repo_data = None
-    if args.l or args.R or args.r or args.c or args.p or args.d or args.s or args.u or args.x:
-        repo_data = load_repos_yaml(repository_locations_path)
-        try:
-            validate_repo_data(repo_data)
-        except ValueError as err:
-            print(f"{ICON_ERROR} YAML validation error: {err}")
-            sys.exit(1)
+def dispatch_command(repo_data, options):
+    """
+    Dispatch CLI command using Python 3.10+ match/case for clarity and future extensibility.
+    """
+    max_workers = 4
 
-    if args.l:
-        list_repos(repo_data)
-        sys.exit(0)
+    match True:
+        case _ if options.h:
+            print_help()
+            sys.exit(0)
 
-    if args.c:
-        max_workers = 4
-        clone_all_repos(
-            repo_data,
-            selected_group=args.r,
-            verbose=args.v,
-            dry_run=args.n,
-            max_workers=max_workers
-        )
-        sys.exit(0)
+        case _ if options.l:
+            list_repos(repo_data)
+            sys.exit(0)
 
-    if args.d:
-        delete_all_repos(
-            repo_data,
-            selected_group=args.r,
-            verbose=args.v,
-            dry_run=args.n
-        )
-        sys.exit(0)
+        case _ if options.c:
+            clone_all_repos(repo_data, options)
+            sys.exit(0)
 
-    if args.p:
-        pull_all_repos(
-            repo_data,
-            selected_group=args.r,
-            verbose=args.v,
-            dry_run=args.n
-        )
-        sys.exit(0)
+        case _ if options.d:
+            delete_all_repos(repo_data, options)
+            sys.exit(0)
 
-    if args.s:
-        list_stashed_repos(
-            repo_data,
-            selected_group=args.r,
-            verbose=args.v
-        )
-        sys.exit(0)
+        case _ if options.p:
+            pull_all_repos(repo_data, options)
+            sys.exit(0)
 
-    if args.x:
-        clean_all_repos(
-            repo_data,
-            selected_group=args.r,
-            verbose=args.v,
-            dry_run=args.n
-        )
-        sys.exit(0)
+        case _ if options.s:
+            list_stashed_repos(repo_data, options)
+            sys.exit(0)
 
-    if args.u:
-        convert_all_utf16(
-            repo_data,
-            selected_group=args.r,
-            verbose=args.v,
-            dry_run=args.n
-        )
-        sys.exit(0)
+        case _ if options.x:
+            clean_all_repos(repo_data, options)
+            sys.exit(0)
 
-    # Remaining unimplemented features (if any)
-    if args.R:
-        print(f"{ICON_WARNING} Apply to all repository locations (to be implemented)")
-    if args.r:
-        print(f"{ICON_INFO} Selected repository location: {args.r} (to be implemented)")
-    if args.v:
-        print(f"{ICON_INFO} Verbose output (to be implemented)")
-    if args.n and not (args.c or args.d or args.p or args.x or args.u):
-        print(f"{ICON_INFO} Dry-run mode (to be implemented)")
+        case _ if options.u:
+            convert_all_utf16(repo_data, options)
+            sys.exit(0)
+
+# -------------------------------------------------------------------------- }}}
+# {{{ Main orchestrates the show.
+
+def main():
+    options = Options(parse_args())
+    repo_data = load_and_validate_repo_data()
+    dispatch_command(repo_data, options)
 
 if __name__ == '__main__':
     main()
 
+# -------------------------------------------------------------------------- }}}
