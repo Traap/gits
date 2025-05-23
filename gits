@@ -167,16 +167,33 @@ def list_repos(repo_data, options):
 
 def iter_repo_dirs(repo_data, options):
     """
-    Yield (group, alias, repo_dir) for each repo in (optionally) selected group.
+    Yield (group, alias, repo_dir, listed) for each repo dir on disk and/or YAML entry.
+    - For each group (or only options.r), yield every subdir in $HOME/group/
+      (listed = True if it's in YAML, False if not)
+    - Also yield any YAML entries that don't have a directory.
     """
     home = os.path.expanduser("~")
-    for group, entries in repo_data.items():
-        if options.r and group != options.r:
-            continue
-        for entry in entries:
-            alias = entry["alias"]
-            repo_dir = os.path.join(home, group, alias)
-            yield group, alias, repo_dir
+    groups = [options.r] if options.r else list(repo_data.keys())
+    for group in groups:
+        group_dir = os.path.join(home, group)
+        aliases_in_yaml = {entry['alias'] for entry in repo_data.get(group, [])}
+        found = set()
+        # First: All subdirs on disk
+        if os.path.isdir(group_dir):
+            for alias in os.listdir(group_dir):
+                repo_dir = os.path.join(group_dir, alias)
+                if not os.path.isdir(repo_dir):
+                    continue
+                listed = alias in aliases_in_yaml
+                yield group, alias, repo_dir, listed
+                found.add(alias)
+        # Second: Any YAML-listed aliases that are missing as dirs
+        for entry in repo_data.get(group, []):
+            alias = entry['alias']
+            if alias not in found:
+                repo_dir = os.path.join(group_dir, alias)
+                yield group, alias, repo_dir, True  # listed, but dir missing
+
 
 # -------------------------------------------------------------------------- }}}
 # {{{ Clone a repository
@@ -281,14 +298,11 @@ def delete_all_repos(repo_data, options):
 # -------------------------------------------------------------------------- }}}
 # {{{ Pull a repository
 
-def pull_repo(group, alias, repo_dir, verbose=False, dry_run=False):
-    """
-    Pull changes for a repo, stashing local changes if necessary.
-    """
+def pull_repo(group, alias, repo_dir, listed, options):
     if not os.path.isdir(repo_dir):
-        return (alias, group, "NOT_FOUND", None)
-    if dry_run:
-        return (alias, group, "DRY-RUN", None)
+        return (group, alias, "NOT_FOUND", None, listed)
+    if options.n:
+        return (group, alias, "DRY-RUN", None, listed)
     try:
         changed = subprocess.run(
             ["git", "-C", repo_dir, "status", "--porcelain"],
@@ -298,39 +312,44 @@ def pull_repo(group, alias, repo_dir, verbose=False, dry_run=False):
             stash = subprocess.run(
                 ["git", "-C", repo_dir, "stash"], capture_output=True, text=True)
             stashed = "No local changes" not in stash.stdout
-            if verbose:
+            if options.v:
                 print(f"{ICON_STASH} [{group}/{alias}] Stashed local changes")
         pull = subprocess.run(
             ["git", "-C", repo_dir, "pull"], capture_output=True, text=True)
         if pull.returncode != 0:
-            return (alias, group, "FAIL", pull.stderr)
+            return (group, alias, "FAIL", pull.stderr, listed)
         if stashed:
             subprocess.run(
                 ["git", "-C", repo_dir, "stash", "pop"], capture_output=True, text=True)
-            if verbose:
+            if options.v:
                 print(f"{ICON_STASH} [{group}/{alias}] Popped stash after pull")
-        return (alias, group, "SUCCESS", None)
+        return (group, alias, "SUCCESS", None, listed)
     except Exception as e:
-        return (alias, group, "FAIL", str(e))
+        return (group, alias, "FAIL", str(e), listed)
 
 # -------------------------------------------------------------------------- }}}
 # {{{ Pull all repositories
 
 def pull_all_repos(repo_data, options):
     """
-    Pull all repositories (optionally, only in selected group), in parallel.
+    Pull changes for all repositories (or just a group), with safe stashing.
+    Annotates unlisted (not in YAML) repos in the output.
     """
-    max_workers = 4
     jobs = list(iter_repo_dirs(repo_data, options))
-    print(f"{ICON_PULL} Pulling {len(jobs)} repositories (parallel={max_workers})...\n")
+    print(f"{ICON_PULL} Pulling {len(jobs)} repositories...\n")
+
     results = []
+    max_workers = 4
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_job = {
-            executor.submit(pull_repo, group, alias, repo_dir, options.v, options.n): (alias, group)
-            for group, alias, repo_dir in jobs
+            executor.submit(pull_repo, group, alias, repo_dir, listed, options): (group, alias, listed)
+            for group, alias, repo_dir, listed in jobs
         }
         for future in as_completed(future_to_job):
-            alias, group, status, msg = future.result()
+            group, alias, status, msg, listed = future.result()
+            label = f"{group}/{alias}"
+            extra = f" {ICON_WARNING}(unlisted, not in YAML)" if not listed else ""
             if status == "SUCCESS":
                 icon = ICON_SUCCESS
             elif status == "FAIL":
@@ -341,9 +360,10 @@ def pull_all_repos(repo_data, options):
                 icon = ICON_WARNING
             else:
                 icon = ICON_INFO
-            print(f"{icon} {group}/{alias}")
+            print(f"{icon} {label}{extra}")
             if msg and status == "FAIL":
                 print(f"    {ICON_ERROR} Error: {msg.strip()}")
+
     print(f"\n{ICON_DONE} Pull complete.")
 
 # -------------------------------------------------------------------------- }}}
@@ -360,9 +380,10 @@ def list_status_repos(repo_data, options):
     """
     jobs = list(iter_repo_dirs(repo_data, options))
     any_status = False
-    for group, alias, repo_dir in jobs:
+    for group, alias, repo_dir, listed in jobs:
         if not os.path.isdir(repo_dir):
             continue
+
         stashed = subprocess.run(
             ["git", "-C", repo_dir, "stash", "list"],
             capture_output=True, text=True)
@@ -389,7 +410,10 @@ def list_status_repos(repo_data, options):
                     output_lines.append(f"{ICON_INFO}  {filename}")
 
         if output_lines:
-            print(f"{ICON_INFO} {group}/{alias}:")
+            if not listed:
+                print(f"{ICON_WARNING} {group}/{alias} (unlisted, not in YAML)")
+            else:
+                print(f"{ICON_INFO} {group}/{alias}:")
             for ol in output_lines:
                 print(" ", ol)
             print()
@@ -401,40 +425,45 @@ def list_status_repos(repo_data, options):
 # -------------------------------------------------------------------------- }}}
 # {{{ Clean a repository untracked files.
 
-def clean_untracked_repo(group, alias, repo_dir, verbose=False, dry_run=False):
+def clean_repo(group, alias, repo_dir, listed, options):
     """
     Remove all untracked files from a repo (git clean -fd).
     """
     if not os.path.isdir(repo_dir):
-        return (alias, group, "NOT_FOUND", None)
-    if dry_run:
-        return (alias, group, "DRY-RUN", None)
+        return (group, alias, "NOT_FOUND", None, listed)
+    if options.n:
+        return (group, alias, "DRY-RUN", None, listed)
     result = subprocess.run(
         ["git", "-C", repo_dir, "clean", "-fd"],
         capture_output=True, text=True)
     if result.returncode == 0:
-        return (alias, group, "CLEANED", None)
+        return (group, alias, "CLEANED", None, listed)
     else:
-        return (alias, group, "FAIL", result.stderr)
+        return (group, alias, "FAIL", result.stderr, listed)
+
 
 # -------------------------------------------------------------------------- }}}
 # {{{ Clean all repositories untracked files.
 
 def clean_all_repos(repo_data, options):
     """
-    Remove untracked files from all repositories.
+    Remove untracked files from all repositories (or a group).
+    Annotates unlisted (not in YAML) repos in the output.
     """
-    max_workers = 4
     jobs = list(iter_repo_dirs(repo_data, options))
-    print(f"{ICON_CLEAN} Cleaning untracked files in {len(jobs)} repositories (parallel={max_workers})...\n")
+    print(f"{ICON_CLEAN} Cleaning untracked files in {len(jobs)} repositories...\n")
+
     results = []
+    max_workers = 4
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_job = {
-            executor.submit(clean_untracked_repo, group, alias, repo_dir, options.v, options.n): (alias, group)
-            for group, alias, repo_dir in jobs
+            executor.submit(clean_repo, group, alias, repo_dir, listed, options): (group, alias, listed)
+            for group, alias, repo_dir, listed in jobs
         }
         for future in as_completed(future_to_job):
-            alias, group, status, msg = future.result()
+            group, alias, status, msg, listed = future.result()
+            label = f"{group}/{alias}"
+            extra = f" {ICON_WARNING}(unlisted, not in YAML)" if not listed else ""
             if status == "CLEANED":
                 icon = ICON_DONE
             elif status == "FAIL":
@@ -445,21 +474,23 @@ def clean_all_repos(repo_data, options):
                 icon = ICON_WARNING
             else:
                 icon = ICON_INFO
-            print(f"{icon} {group}/{alias}")
+            print(f"{icon} {label}{extra}")
             if msg and status == "FAIL":
                 print(f"    {ICON_ERROR} Error: {msg.strip()}")
+
     print(f"\n{ICON_DONE} Clean complete.")
 
 # -------------------------------------------------------------------------- }}}
 # {{{ Convert uft16 to utf8 files in a repository.
 
-def convert_utf16_to_utf8_in_repo(group, alias, repo_dir, verbose=False, dry_run=False):
+def convert_utf16_to_utf8_in_repo(group, alias, repo_dir, listed, options):
     """
     Recursively convert UTF-16 files to UTF-8 in a repo.
     Only files with UTF-16 BOM (little/big endian) are converted.
+    Returns: (group, alias, status, converted_files_count, listed)
     """
     if not os.path.isdir(repo_dir):
-        return (alias, group, "NOT_FOUND", 0)
+        return (group, alias, "NOT_FOUND", 0, listed)
     converted_files = 0
     for root, _, files in os.walk(repo_dir):
         for fname in files:
@@ -468,9 +499,9 @@ def convert_utf16_to_utf8_in_repo(group, alias, repo_dir, verbose=False, dry_run
                 with open(path, "rb") as f:
                     raw = f.read(4)
                     if raw.startswith(b'\xff\xfe') or raw.startswith(b'\xfe\xff'):
-                        if dry_run:
+                        if options.n:
                             converted_files += 1
-                            if verbose:
+                            if options.v:
                                 print(f"{ICON_CONVERT} (Dry-run) Would convert: {path}")
                             continue
                         with open(path, "r", encoding="utf-16") as fi:
@@ -478,35 +509,38 @@ def convert_utf16_to_utf8_in_repo(group, alias, repo_dir, verbose=False, dry_run
                         with open(path, "w", encoding="utf-8") as fo:
                             fo.write(data)
                         converted_files += 1
-                        if verbose:
+                        if options.v:
                             print(f"{ICON_CONVERT} Converted: {path}")
             except Exception as e:
-                if verbose:
+                if options.v:
                     print(f"{ICON_WARNING} Failed to check/convert {path}: {e}")
-    return (alias, group, "CONVERTED", converted_files)
+    return (group, alias, "CONVERTED", converted_files, listed)
+
 
 # -------------------------------------------------------------------------- }}}
 # {{{ Convert uft16 to utf8 files in all repository.
 
-
 def convert_all_utf16(repo_data, options):
     """
     Convert all UTF-16 files to UTF-8 in all repositories (parallel).
+    Annotates unlisted (not in YAML) repos in output.
     """
-    max_workers = 4
     jobs = list(iter_repo_dirs(repo_data, options))
-    print(f"{ICON_CONVERT} Checking for UTF-16 files in {len(jobs)} repositories (parallel={max_workers})...\n")
+    print(f"{ICON_CONVERT} Checking for UTF-16 files in {len(jobs)} repositories...\n")
+
     results = []
+    max_workers = 4
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_job = {
-            executor.submit(convert_utf16_to_utf8_in_repo, group, alias, repo_dir, options.v, options.n): (alias, group)
-            for group, alias, repo_dir in jobs
+            executor.submit(convert_utf16_to_utf8_in_repo, group, alias, repo_dir, listed, options): (group, alias, listed)
+            for group, alias, repo_dir, listed in jobs
         }
         for future in as_completed(future_to_job):
-            alias, group, status, converted = future.result()
+            group, alias, status, converted, listed = future.result()
+            label = f"{group}/{alias}"
+            extra = f" {ICON_WARNING}(unlisted, not in YAML)" if not listed else ""
             icon = ICON_DONE if converted else ICON_INFO
-            print(f"{icon} {group}/{alias} files converted: {converted}")
-    total = sum(r[3] for r in results if isinstance(r[3], int))
+            print(f"{icon} {label}{extra} files converted: {converted}")
     print(f"\n{ICON_DONE} UTF-16 to UTF-8 conversion complete.")
 
 # -------------------------------------------------------------------------- }}}
