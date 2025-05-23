@@ -68,7 +68,6 @@ def parse_args():
     parser = argparse.ArgumentParser(add_help=False, usage=argparse.SUPPRESS)
     parser.add_argument('-h', action='store_true')
     parser.add_argument('-l', action='store_true')
-    parser.add_argument('-R', action='store_true')
     parser.add_argument('-r', metavar='name', type=str)
     parser.add_argument('-d', action='store_true')
     parser.add_argument('-s', action='store_true')
@@ -101,6 +100,7 @@ def load_repos_yaml(filepath):
 def validate_repo_data(repo_data):
     """
     Ensures every entry in repo_data is a dict with 'alias' and 'url' keys.
+    Checks that 'do_not_delete' is optional and if present is a bool.
     Raises ValueError if not.
     """
     for group, entries in repo_data.items():
@@ -112,6 +112,11 @@ def validate_repo_data(repo_data):
             missing = [key for key in ("alias", "url") if key not in entry]
             if missing:
                 raise ValueError(f"Entry {idx+1} in group '{group}' missing {', '.join(missing)}: {entry}")
+            # Check do_not_delete if present
+            if "do_not_delete" in entry and not isinstance(entry["do_not_delete"], bool):
+                raise ValueError(
+                    f"Entry {idx+1} in group '{group}' has 'do_not_delete' but it is not true/false: {entry['do_not_delete']!r}"
+                )
 
 # -------------------------------------------------------------------------- }}}
 # {{{ Print help.
@@ -120,11 +125,10 @@ def print_help():
     """
     Show CLI usage.
     """
-    print(f"{ICON_INFO} Usage: gits [-h -l -R] [-r name -d -s -u -v -x] [-c | -p] [-n]\n")
+    print(f"{ICON_INFO} Usage: gits [-h -l] [-r name -d -s -u -v -x] [-c | -p] [-n]\n")
     print("Options:")
     print("  -h          Show help")
     print("  -l          List repository locations")
-    print("  -R          Apply modifiers to repository locations")
     print("Repository Locations")
     print("  -r name")
     print("Modifiers")
@@ -267,33 +271,56 @@ def clone_all_repos(repo_data, options):
 
 def delete_all_repos(repo_data, options):
     """
-    Remove the entire group directory for each group in repo_data.
-    (Deletes ~/group and all contents, with icons.)
+    Delete only listed (YAML) repos unless do_not_delete: true.
+    Delete group dir only if empty after.
+    Do NOT touch unlisted/orphan directories, but report them.
     """
     home = os.path.expanduser("~")
-    count = 0
-    for group in repo_data.keys():
+    for group, entries in repo_data.items():
         if options.r and group != options.r:
             continue
         group_dir = os.path.join(home, group)
+        aliases_in_yaml = {entry['alias'] for entry in entries}
+        deleted = []
+        # 1. Try to delete each listed repo
+        for entry in entries:
+            alias = entry['alias']
+            repo_dir = os.path.join(group_dir, alias)
+            do_not_delete = entry.get('do_not_delete', False)
+            if do_not_delete:
+                print(f"{ICON_WARNING} {group}/{alias}: marked do_not_delete, skipping.")
+                continue
+            if os.path.isdir(repo_dir):
+                print(f"{ICON_DELETE} {repo_dir}")
+                if not options.n:
+                    try:
+                        shutil.rmtree(repo_dir)
+                        print(f"    {ICON_DONE} Removed.")
+                    except Exception as e:
+                        print(f"    {ICON_ERROR} Error removing: {e}")
+                else:
+                    print(f"    {ICON_INFO} (Dry-run; not removed)")
+                deleted.append(alias)
+            else:
+                if options.v:
+                    print(f"{ICON_WARNING} [NOT FOUND] {repo_dir}")
+        # 2. Report any unlisted directories not in YAML
         if os.path.isdir(group_dir):
-            print(f"{ICON_DELETE} {group_dir}")
-            count += 1
+            for alias in os.listdir(group_dir):
+                if alias not in aliases_in_yaml:
+                    repo_dir = os.path.join(group_dir, alias)
+                    if os.path.isdir(repo_dir):
+                        print(f"{ICON_WARNING} {group}/{alias} is unlisted (not in YAML) and was NOT deleted.")
+        # 3. Remove group dir only if empty after deletes
+        if os.path.isdir(group_dir) and not os.listdir(group_dir):
             if not options.n:
                 try:
-                    shutil.rmtree(group_dir)
-                    print(f"    {ICON_DONE} Removed.")
+                    os.rmdir(group_dir)
+                    print(f"{ICON_DONE} Removed empty group directory: {group_dir}")
                 except Exception as e:
-                    print(f"    {ICON_ERROR} Error removing: {e}")
+                    print(f"{ICON_ERROR} Error removing group dir: {e}")
             else:
-                print(f"    {ICON_INFO} (Dry-run; not removed)")
-        else:
-            if options.v:
-                print(f"{ICON_WARNING} [NOT FOUND] {group_dir}")
-    if count == 0:
-        print(f"{ICON_WARNING} No repository groups found to delete.")
-    else:
-        print(f"\n{ICON_DONE} Delete complete. {count} group(s) processed.")
+                print(f"{ICON_INFO} (Dry-run) Would remove empty group directory: {group_dir}")
 
 # -------------------------------------------------------------------------- }}}
 # {{{ Pull a repository

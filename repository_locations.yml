@@ -35,6 +35,8 @@ plugins:
 traap:
   - alias: gits
     url: https://github.com/Traap/gits
+    do_not_delete: true
 
   - alias: nvims
     url: https://github.com/Traap/nvims
+    do_not_delete: true
