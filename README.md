@@ -1,6 +1,4 @@
-jjjjjits
-
-**Gits** is a simple tool to manage groups of git repositories.
+### Gits is a simple tool to manage groups of git repositories.
 
 ### Features
 - Clone multiple repositories into categorized folders
