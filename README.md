@@ -33,18 +33,17 @@
 
 ### Use
 ```console
-Usage: gits [-h -l -R] [-r name -d -s -u -x] [-c | -p] [-n -v]
+Usage: gits [-h -l] [-r name -d -s -u -x] [-c | -p] [-n -v]
 
 Options:
   -h  Show help.
   -l  List repository locations.
-  -R  Apply modifiers to repository locations (overrides -r).
 
 Repository Locations:
   -r  name
 Modifiers:
   -d  Delete repository location.
-  -s  List repositories with stash entries.
+  -s  List repositories with edits, delete, stasned and untracked files.
   -u  Convert UTF-16 files to UTF-8.
   -v  Verbose output.
   -x  Clean untracked files.
@@ -61,30 +60,47 @@ Miscellaneous:
 ### Example Respository Location File
 '''$HOME/.config/gits/repository_locations.yml'''
 
-```bash
-repo_editor=(
-  "https://github.com/folke/lazy.nvim.git lazy.nvim"
-  "https://github.com/neovim/neovim.git neovim"
-)
+```yaml
+editor:
+  - alias: LazyVim
+    url: https://github.com/LazyVim/starter
 
-repo_fzf=(
-  "https://github.com/junegunn/fzf-git.sh fzf1"
-  "https://github.com/junegunn/everything.fzf fzf2"
-)
+  - alias: lazy.nvim
+    url: https://github.com/folke/lazy.nvim
 
-repo_hyprland=(
-  "git@github.com:JaKooLit/Hyprland-Dots.git Dots"
-  "git@github.com:JaKooLit/Arch-Hyprland.git Arch"
-)
+  - alias: neovim
+    url: https://github.com/neovim/neovim
 
-repo_plugins=(
-  "https://github.com/nvim-telescope/telescope.nvim telescope"
-  "https://github.com/tpope/vim-fugitive fugitive"
-)
+fzf:
+  - alias: fzf
+    url: https://github.com/junegunn/fzf-git.sh
 
-repo_traap=(
-  "https://github.com/Traap/gits gits"
-  "https://github.com/Traap/nvims nvims"
-)
+  - alias: everything
+    url: https://github.com/junegunn/everything.fzf
+
+hyprland:
+  - alias: Dots
+    url: https://github.com/JaKooLit/Hyprland-Dots
+
+  - alias: Arch
+    url: https://github.com/JaKooLit/Arch-Hyprland
+
+plugins:
+  - alias: neo-tree
+    url: https://github.com/nvim-neo-tree/neo-tree.nvim
+
+  - alias: telescope
+    url: https://github.com/nvim-telescope/telescope.nvim
+
+  - alias: fugitive
+    url: https://github.com/tpope/vim-fugitive
+
+traap:
+  - alias: gits
+    url: https://github.com/Traap/gits
+    do_not_delete: true
+
+  - alias: nvims
+    url: https://github.com/Traap/nvims
+    do_not_delete: true
 ```
-
