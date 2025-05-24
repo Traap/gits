@@ -105,4 +105,18 @@ traap:
   - alias: nvims
     url: https://github.com/Traap/nvims
     do_not_delete: true
+
+  - alias: vimtex
+    url: hhttps://github.com/lervag/vimtex
+    do_not_delete: true
 ```
+
+### Notes
+1. Delete modifer -d will not delete any repository group item that has do_not_delte =
+   true.
+2. gits without arguments defaults to ```gits -s```
+3. You can clone repositoires into any repository group name.  A waring is given
+   whenever option or modifier is used and an unlisted repository is
+   encountered.
+4. Delete modifier -d will not delete the repository group name when it is not
+   empty.
