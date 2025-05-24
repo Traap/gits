@@ -40,3 +40,7 @@ traap:
   - alias: nvims
     url: https://github.com/Traap/nvims
     do_not_delete: true
+
+  - alias: vimtex
+    url: hhttps://github.com/lervag/vimtex
+    do_not_delete: true
