@@ -58,7 +58,9 @@ Miscellaneous:
 ```
 
 ### Example Respository Location File
-'''$HOME/.config/gits/repository_locations.yml'''
+'''console
+$HOME/.config/gits/repository_locations.yml
+'''
 
 ```yaml
 editor:
