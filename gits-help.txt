@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/home/traap/soup/gits/.venv/bin/gits", line 4, in <module>
+    from gits.cli import app
+  File "/home/traap/soup/gits/gits/cli.py", line 11, in <module>
+    from gits.icons import ICONS
+ImportError: cannot import name 'ICONS' from 'gits.icons' (/home/traap/soup/gits/gits/icons.py)

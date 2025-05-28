@@ -1,32 +1,29 @@
 #!/usr/bin/env bash
 
-# 1. Activate the virtual environment
-source .venv/bin/activate || {
-  echo "❌ Failed to activate .venv"
-  exit 1
+LOGFILE="gits.log"
+VENV=".venv/bin/gits"
+
+set -e
+echo "" > $LOGFILE
+
+function run_test() {
+  echo "$ $@" | tee -a $LOGFILE
+  eval "$@" >> $LOGFILE 2>&1
+  echo "" >> $LOGFILE
 }
 
-# 2. Clear old log
-: > gits.log
+# Define repo group
+GROUP="fzf"
 
-# 3. Define and run tests
-run_test() {
-  echo -e "\n=== Test: $* ===" >> gits.log
-  "$@" >> gits.log 2>&1
-}
-
-run_test gits clone -n
-run_test gits clean
-run_test gits clean -r traap
-run_test gits clean -r traap -v
-run_test gits pull -v
-run_test gits
-run_test gits -r traap
-run_test gits list
-run_test gits list -r traap
-run_test gits list -v
-run_test gits list -r traap -v
-
-# Optional: confirm success
-echo -e "\n✅ All tests completed."
-cat gits.log
+# Commands to test
+run_test "$VENV"
+run_test "$VENV -r $GROUP"
+run_test "$VENV status -r $GROUP"
+run_test "$VENV pull -r $GROUP -n"
+run_test "$VENV clean -r $GROUP -n"
+run_test "$VENV delete -r $GROUP -n"
+run_test "$VENV clone -r $GROUP -n"
+run_test "$VENV convert -r $GROUP -n"
+run_test "$VENV list"
+run_test "$VENV list -r $GROUP"
+run_test "$VENV list -r $GROUP -v"

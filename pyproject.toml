@@ -14,4 +14,4 @@ dependencies = [
 ]
 
 [project.scripts]
-gits = "gits.cli:gits"
+gits = "gits.cli:app"
