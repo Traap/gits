@@ -1,0 +1,13 @@
+LICENSE
+README.md
+pyproject.toml
+gits/__init__.py
+gits/cli.py
+gits/config_loader.py
+gits/icons.py
+gits.egg-info/PKG-INFO
+gits.egg-info/SOURCES.txt
+gits.egg-info/dependency_links.txt
+gits.egg-info/entry_points.txt
+gits.egg-info/requires.txt
+gits.egg-info/top_level.txt
