@@ -1,0 +1,50 @@
+editor:
+  - root_dir: ~/editor
+  - repositories:
+    - alias: LazyVim
+      url: https://github.com/LazyVim/starter
+    - alias: lazy.nvim
+      url: https://github.com/folke/lazy.nvim
+    - alias: neovim
+      url: https://github.com/neovim/neovim
+
+fzf:
+  - root_dir: ~/fzf
+  - repositories:
+    - alias: fzf
+      url: https://github.com/junegunn/fzf-git.sh
+    - alias: everything
+      url: https://github.com/junegunn/everything.fzf
+
+hyprland:
+  - root_dir: ~/hyprland
+  - repositories:
+    - alias: Dots
+      url: https://github.com/JaKooLit/Hyprland-Dots
+    - alias: Arch
+      url: https://github.com/JaKooLit/Arch-Hyprland
+
+plugins:
+  - root_dir: ~/plugins
+  - repositories:
+    - alias: neo-tree
+      url: https://github.com/nvim-neo-tree/neo-tree.nvim
+    - alias: telescope
+      url: https://github.com/nvim-telescope/telescope.nvim
+    - alias: fugitive
+      url: https://github.com/tpope/vim-fugitive
+
+traap:
+  - root_dir: ~/traap
+  - repositories:
+    - alias: archlinux
+      url: git@github.com:Traap/bootstrap-archlinux
+    - alias: gits
+      url: git@github.com:Traap/gits
+      do_not_delete: true
+    - alias: nvims
+      url: git@github.com:Traap/nvims
+      do_not_delete: true
+    - alias: vimtex
+      url: https://github.com/lervag/vimtex
+      do_not_delete: false
