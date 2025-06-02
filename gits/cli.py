@@ -27,49 +27,13 @@ def filtered_repos(repo_group):
 
 
 @app.command()
-def status(
-    ctx: typer.Context,
-    repo_group: Optional[str] = typer.Option(None, "--repo-group", "-r", help="Limit to a specific group."),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output."),
-    dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Run without making changes."),
-):
-    """Print git status for all repositories."""
-    any_output = False
-    for group_name, repo in filtered_repos(repo_group):
-        alias = repo["alias"]
-        path = get_repo_path(group_name, alias, repo.get("target_path"))
-
-        if not path.exists():
-            typer.echo(f"{ICONS.STATUS} {alias}: not cloned")
-            any_output = True
-            continue
-
-        try:
-            result = subprocess.run(
-                ["git", "-C", str(path), "status", "--short"],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            status_output = result.stdout.strip() or "clean"
-            typer.echo(f"{ICONS.STATUS} {alias}: {status_output}")
-            any_output = True
-        except subprocess.CalledProcessError:
-            typer.echo(f"{ICONS.ERROR} {alias}: failed to get status")
-            any_output = True
-
-    if not any_output:
-        typer.echo(f"{ICONS.INFO} All repositories are clean.")
-
-
-@app.command()
 def pull(
     ctx: typer.Context,
     repo_group: Optional[str] = typer.Option(None, "--repo-group", "-r", help="Limit to a specific group."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output."),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Run without making changes."),
 ):
-    """Pull changes for all repositories."""
+    """Pull changes for all repositories including unlisted ones."""
     def pull_repo(group_name, repo):
         alias = repo["alias"]
         path = get_repo_path(group_name, alias, repo.get("target_path"))
@@ -125,57 +89,6 @@ def clean(
         for group_name, repo in filtered_repos(repo_group):
             executor.submit(clean_repo, group_name, repo)
 
-
-@app.command()
-def delete(
-    ctx: typer.Context,
-    repo_group: Optional[str] = typer.Option(None, "--repo-group", "-r", help="Limit to a specific group."),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output."),
-    dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Run without making changes."),
-):
-    """Delete repositories not listed or not protected by do_not_delete."""
-    repos = load_repos()
-    repo_lookup = {}
-    root_dirs = set()
-
-    for group in repos:
-        group_name = group["group_name"]
-        if repo_group and group_name != repo_group:
-            continue
-
-        for repo in group["repositories"]:
-            alias = repo["alias"]
-            target_path = get_repo_path(group_name, alias, repo.get("target_path"))
-            repo_lookup[str(target_path)] = repo
-            root_dirs.add(str(target_path.parent))
-
-    deleted = []
-
-    for root in root_dirs:
-        for entry in os.scandir(root):
-            if entry.is_dir():
-                path_str = str(Path(entry.path).resolve())
-                if path_str not in repo_lookup:
-                    reason = "unlisted"
-                    allow_delete = True
-                else:
-                    do_not_delete = repo_lookup[path_str].get("do_not_delete", False)
-                    reason = "do_not_delete = true" if do_not_delete else "listed"
-                    allow_delete = not do_not_delete
-
-                if allow_delete:
-                    if dry_run:
-                        typer.echo(f"{ICONS.DELETE} (dry-run) would remove: {entry.path}")
-                    else:
-                        shutil.rmtree(entry.path)
-                        typer.echo(f"{ICONS.DELETE} Removed: {entry.path}")
-                    deleted.append(entry.path)
-                else:
-                    if verbose:
-                        typer.echo(f"{ICONS.INFO} Skipped {entry.path} ({reason})")
-
-    if not deleted:
-        typer.echo(f"{ICONS.INFO} No repositories deleted.")
 
 
 @app.command()
@@ -244,6 +157,62 @@ def convert(
         for group_name, repo in filtered_repos(repo_group):
             executor.submit(convert_repo, group_name, repo)
 
+@app.command()
+def delete(
+    ctx: typer.Context,
+    repo_group: Optional[str] = typer.Option(None, "--repo-group", "-r", help="Limit to a specific group."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output."),
+    dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Run without making changes."),
+):
+    """Delete repositories listed in YAML that are not protected by do_not_delete."""
+    repos = load_repos()
+    repo_lookup = {}
+    root_dirs = set()
+
+    for group in repos:
+        group_name = group["group_name"]
+        if repo_group and group_name != repo_group:
+            continue
+
+        for repo in group["repositories"]:
+            alias = repo["alias"]
+            target_path = get_repo_path(group_name, alias, repo.get("target_path"))
+            repo_lookup[str(target_path)] = repo
+            root_dirs.add(str(target_path.parent))
+
+    deleted = []
+
+    for path_str, repo in repo_lookup.items():
+        if not os.path.exists(path_str):
+            continue
+
+        do_not_delete = repo.get("do_not_delete", False)
+        reason = "do_not_delete = true" if do_not_delete else "listed"
+        allow_delete = not do_not_delete
+
+        if allow_delete:
+            if dry_run:
+                typer.echo(f"{ICONS.DELETE} (dry-run) would remove: {path_str}")
+            else:
+                shutil.rmtree(path_str)
+                typer.echo(f"{ICONS.DELETE} Removed: {path_str}")
+            deleted.append(path_str)
+        else:
+            if verbose:
+                typer.echo(f"{ICONS.INFO} Skipped {path_str} ({reason})")
+
+    # Cleanup empty root directories
+    for root in root_dirs:
+        if os.path.exists(root) and not os.listdir(root):
+            if dry_run:
+                typer.echo(f"{ICONS.DELETE} (dry-run) would remove empty directory: {root}")
+            else:
+                os.rmdir(root)
+                typer.echo(f"{ICONS.DELETE} Removed empty directory: {root}")
+
+    if not deleted:
+        typer.echo(f"{ICONS.INFO} No repositories deleted.")
+
 
 @app.command()
 def list(
@@ -262,6 +231,8 @@ def list(
 
         if verbose:
             for repo in group["repositories"]:
+                if not isinstance(repo, dict) or "alias" not in repo or "url" not in repo:
+                    continue
                 alias = repo["alias"]
                 url = repo["url"]
                 typer.echo(f"  - {alias}: {url}")
@@ -274,7 +245,7 @@ if __name__ == "__main__":
     args = [arg for arg in sys.argv[1:] if not arg.startswith("-")]
 
     if not args or args[0] not in known_commands:
-        sys.argv.insert(1, "status")
+        typer.echo(f"{ICONS.ERROR} Missing or unknown command. Use '--help' to view available options.")
+        raise typer.Exit(code=1)
 
     app()
-
