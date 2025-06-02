@@ -1,60 +1,64 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
-# Ensure python3 and pip3 are installed.
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "Python 3 is required. Installing python3..."
-  if command -v apt >/dev/null 2>&1; then
-    sudo apt update && sudo apt install -y python3
-  elif command -v pacman >/dev/null 2>&1; then
-    sudo pacman -Sy --noconfirm python
+REPO_NAME=".gits"
+INSTALL_DIR="$HOME/$REPO_NAME"
+VENV_DIR="$INSTALL_DIR/.venv"
+CLI_ENTRY="gits"
+BIN_LINK="$HOME/.local/bin/$CLI_ENTRY"
+CONFIG_FILE="$INSTALL_DIR/repository_locations.yml"
+
+echo "📦 Installing $CLI_ENTRY to $INSTALL_DIR"
+
+# Ensure ~/.local/bin exists and is on PATH
+mkdir -p "$HOME/.local/bin"
+if ! command -v "$CLI_ENTRY" &>/dev/null && [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+  echo "⚠️  Please add \$HOME/.local/bin to your PATH."
+fi
+
+# Check for uv and install if missing
+if ! command -v uv &>/dev/null; then
+  echo "🚀 uv not found. Installing..."
+
+  if [[ -f /etc/arch-release ]]; then
+    sudo pacman -Sy --noconfirm uv
+  elif command -v apt &>/dev/null; then
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="$HOME/.cargo/bin:$PATH"
   else
-    echo "Unsupported package manager. Please install python3 manually."
+    echo "❌ Unsupported OS. Please install uv manually."
     exit 1
   fi
 fi
 
-if ! command -v pip3 >/dev/null 2>&1; then
-  echo "pip3 not found. Installing python3-pip..."
-  if command -v apt >/dev/null 2>&1; then
-    sudo apt update && sudo apt install -y python3-pip
-  elif command -v pacman >/dev/null 2>&1; then
-    sudo pacman -Sy --noconfirm python-pip
-  else
-    echo "Unsupported package manager. Please install pip manually."
-    exit 1
-  fi
+# Clone the repo if not already cloned
+if [[ ! -d "$INSTALL_DIR" ]]; then
+  git clone https://github.com/Traap/gits.git "$INSTALL_DIR"
 fi
 
-# Install PyYAML using pip, unless installed via system package manager
-if ! python3 -c "import yaml" 2>/dev/null; then
-  echo "PyYAML not found, installing..."
-  if command -v apt >/dev/null 2>&1; then
-    sudo apt update && sudo apt install -y python3-yaml || pip3 install --user --upgrade PyYAML
-  elif command -v pacman >/dev/null 2>&1; then
-    sudo pacman -Sy --noconfirm python-yaml || pip3 install --user --upgrade PyYAML
-  else
-    pip3 install --user --upgrade PyYAML
-  fi
+cd "$INSTALL_DIR"
+
+# Remove existing .venv
+rm -rf "$VENV_DIR"
+
+echo "🐍 Creating virtual environment..."
+uv venv "$VENV_DIR"
+source "$VENV_DIR/bin/activate"
+
+echo "🔧 Installing project..."
+uv pip install -e .
+
+# Symlink CLI
+if [[ -f "$VENV_DIR/bin/$CLI_ENTRY" ]]; then
+  ln -sf "$VENV_DIR/bin/$CLI_ENTRY" "$BIN_LINK"
+  echo "🔗 Symlinked: $BIN_LINK → $VENV_DIR/bin/$CLI_ENTRY"
 fi
 
-# Clone to /tmp/gits and run from there.
-git clone https://github.com/Traap/gits /tmp/traap/gits
-cd /tmp/traap/gits
-
-# Copy files to their production locations.
-sudo cp -v gits /usr/local/bin/.
-sudo chmod -v +x /usr/local/bin/gits
-
-# Install default config if not present
-mkdir -p "$HOME/.config/gits"
-if [ ! -f "$HOME/.config/gits/repository_locations.yml" ]; then
-  cp -v repository_locations.yml "$HOME/.config/gits/repository_locations.yml"
+# Copy default config file if not already customized
+if [[ ! -f "$CONFIG_FILE" ]]; then
+  cp -v repository_locations.yml "$CONFIG_FILE"
+  echo "📝 Installed default repository_locations.yml to $INSTALL_DIR"
 fi
 
-# Cleanup temporary directory.
-rm -rf /tmp/traap/
-
-echo "Installation complete."
-echo "Add /usr/local/bin to your PATH if it's not already."
+echo "✅ Done! You can now run: $CLI_ENTRY"
