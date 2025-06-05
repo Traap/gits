@@ -7,6 +7,7 @@ DELETE  = "🗑️"
 DOC     = "🧪"  # or "🩺" or any preferred Unicode symbol
 DONE    = "✅"
 ERROR   = "❌"
+GROUP   = "📦"
 INFO    = "ℹ️"
 PULL    = "⬇️"
 REFRESH = "🔄"

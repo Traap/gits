@@ -15,14 +15,25 @@ def status(
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Run without making changes."),
 ):
     """Print git status for all repositories."""
+    check_group = ""
     any_output = False
 
+    typer.echo(f"{ICONS.GROUP} {repo_group}")
+
     for group_name, repo in filtered_repos(repo_group):
+        if group_name != check_group:
+           check_group = group_name
+           if verbose:
+               typer.echo(f"{ICONS.GROUP} {group_name}")
+
+        any_output = False
+
         alias = repo["alias"]
         path = get_repo_path(group_name, alias, repo.get("target_path"))
 
         if not path.exists():
-            typer.echo(f"{ICONS.STATUS} {alias}: not cloned")
+            if verbose:
+                typer.echo(f"   {ICONS.STATUS} {alias}: has not been cloned")
             any_output = True
             continue
 
@@ -34,12 +45,16 @@ def status(
                 check=True,
             )
             status_output = result.stdout.strip() or "clean"
-            typer.echo(f"{ICONS.STATUS} {alias}: {status_output}")
+            if verbose:
+                # typer.echo(f"   {ICONS.STATUS} {alias}: {status_output}")
+                typer.echo(f"   {ICONS.STATUS} {status_output}: {alias}")
+
             any_output = True
         except subprocess.CalledProcessError:
-            typer.echo(f"{ICONS.ERROR} {alias}: failed to get status")
+            if verbose:
+                typer.echo(f"   {ICONS.ERROR} {alias}: is not a git repositories")
             any_output = True
 
     if not any_output:
-        typer.echo(f"{ICONS.INFO} All repositories are clean.")
+        typer.echo(f"   {ICONS.INFO} All repositories are clean.")
 
