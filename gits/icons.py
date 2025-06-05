@@ -3,8 +3,8 @@
 CLEAN   = "🧹"
 CLONE   = "📥"
 CONVERT = "🔄"
-DELETE  = "❌"
 DELETE  = "🗑️"
+DOC     = "🧪"  # or "🩺" or any preferred Unicode symbol
 DONE    = "✅"
 ERROR   = "❌"
 INFO    = "ℹ️"
