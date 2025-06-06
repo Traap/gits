@@ -6,7 +6,7 @@ from typing import Optional
 import typer
 
 import gits.icons as ICONS
-from gits.utils.repos import get_repo_path, filtered_repos
+from gits.utils.repos import get_repo_path
 from gits.config_loader import load_repos
 
 
@@ -18,57 +18,58 @@ def delete(
 ):
     """Delete repositories listed in YAML that are not protected by do_not_delete."""
     repos = load_repos()
-    repo_lookup = {}
-    root_dirs = set()
+    deleted = []
 
     for group in repos:
         group_name = group["group_name"]
         if repo_group and group_name != repo_group:
             continue
 
+        typer.echo(f"{ICONS.GROUP} {group_name}")
+        group_deleted = False  # ✅ track whether any repos were deleted in this group
+
         for repo in group["repositories"]:
             alias = repo["alias"]
+            do_not_delete = repo.get("do_not_delete", False)
             target_path = get_repo_path(group_name, alias, repo.get("target_path"))
-            repo_lookup[str(target_path)] = repo
-            root_dirs.add(str(target_path.parent))
 
-    deleted = []
+            if not target_path.exists():
+                continue
 
-    check_group = ""
-    for path_str, repo in repo_lookup.items():
-        if path_str != check_group:
-            check_group = path_str
-            typer.echo(f"{ICONS.GROUP} {path_str}")
-
-        if not os.path.exists(path_str):
-            continue
-
-        do_not_delete = repo.get("do_not_delete", False)
-        reason = "do_not_delete = true" if do_not_delete else "listed"
-        allow_delete = not do_not_delete
-
-        if allow_delete:
-            if dry_run:
-                typer.echo(f"   {ICONS.DELETE} (dry-run) would remove: {path_str}")
-            else:
-                shutil.rmtree(path_str)
+            if do_not_delete:
                 if verbose:
-                    typer.echo(f"   {ICONS.DELETE} Removed: {path_str}")
-            deleted.append(path_str)
-        else:
-            if verbose:
-                typer.echo(f"   {ICONS.INFO} Skipped {path_str} ({reason})")
+                    typer.echo(f"   {ICONS.INFO} Skipped {alias} (do_not_delete = true)")
+                continue
 
-    # Cleanup empty root directories
-    for root in root_dirs:
-        if os.path.exists(root) and not os.listdir(root):
             if dry_run:
-                typer.echo(f"   {ICONS.DELETE} (dry-run) would remove empty directory: {root}")
-            else:
-                os.rmdir(root)
                 if verbose:
-                    typer.echo(f"   {ICONS.DELETE} Removed empty directory: {root}")
+                    typer.echo(f"   {ICONS.DELETE} (dry-run) would remove: {alias} --> {target_path}")
+                else:
+                    typer.echo(f"   {ICONS.DELETE} (dry-run) would remove: {alias}")
+            else:
+                shutil.rmtree(target_path)
+                if verbose:
+                    typer.echo(f"   {ICONS.DELETE} Deleted: {alias} --> {target_path}")
+                else:
+                    typer.echo(f"   {ICONS.DELETE} Deleted: {alias}")
+                deleted.append(alias)
+                group_deleted = True  # ✅ something was removed
 
-    if not deleted:
-        if verbose:
-            typer.echo(f"   {ICONS.INFO} No repositories deleted.")
+        # Check and remove the group root directory if now empty
+        group_root = get_repo_path(group_name, ".", None).parent
+        if group_deleted and group_root.exists() and not any(group_root.iterdir()):
+            if dry_run:
+                if verbose:
+                    typer.echo(f"   {ICONS.DELETE} (dry-run) would remove: {group_name} --> {group_root}")
+                else:
+                    typer.echo(f"   {ICONS.DELETE} (dry-run) would remove: {group_name}")
+            else:
+                os.rmdir(group_root)
+                if verbose:
+                    typer.echo(f"   {ICONS.DELETE} Deleted: {group_name} --> {group_root}")
+                else:
+                    typer.echo(f"   {ICONS.DELETE} Deleted: {group_name}")
+
+    if not deleted and verbose:
+        typer.echo(f"   {ICONS.INFO} No repositories deleted.")
+
