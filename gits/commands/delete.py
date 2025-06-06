@@ -26,7 +26,6 @@ def delete(
             continue
 
         typer.echo(f"{ICONS.GROUP} {group_name}")
-        group_deleted = False  # ✅ track whether any repos were deleted in this group
 
         for repo in group["repositories"]:
             alias = repo["alias"]
@@ -53,11 +52,10 @@ def delete(
                 else:
                     typer.echo(f"   {ICONS.DELETE} Deleted: {alias}")
                 deleted.append(alias)
-                group_deleted = True  # ✅ something was removed
 
         # Check and remove the group root directory if now empty
-        group_root = get_repo_path(group_name, ".", None).parent
-        if group_deleted and group_root.exists() and not any(group_root.iterdir()):
+        group_root = get_repo_path(group_name, "", None)
+        if group_root.exists() and not any(group_root.iterdir()):
             if dry_run:
                 if verbose:
                     typer.echo(f"   {ICONS.DELETE} (dry-run) would remove: {group_name} --> {group_root}")
@@ -69,6 +67,8 @@ def delete(
                     typer.echo(f"   {ICONS.DELETE} Deleted: {group_name} --> {group_root}")
                 else:
                     typer.echo(f"   {ICONS.DELETE} Deleted: {group_name}")
+        else:
+            typer.echo(f"   {ICONS.WARNING} Not Empty: {group_name} --> {group_root}")
 
     if not deleted and verbose:
         typer.echo(f"   {ICONS.INFO} No repositories deleted.")
