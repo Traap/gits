@@ -34,7 +34,12 @@ def delete(
 
     deleted = []
 
+    check_group = ""
     for path_str, repo in repo_lookup.items():
+        if path_str != check_group:
+            check_group = path_str
+            typer.echo(f"{ICONS.GROUP} {path_str}")
+
         if not os.path.exists(path_str):
             continue
 
@@ -44,24 +49,26 @@ def delete(
 
         if allow_delete:
             if dry_run:
-                typer.echo(f"{ICONS.DELETE} (dry-run) would remove: {path_str}")
+                typer.echo(f"   {ICONS.DELETE} (dry-run) would remove: {path_str}")
             else:
                 shutil.rmtree(path_str)
-                typer.echo(f"{ICONS.DELETE} Removed: {path_str}")
+                if verbose:
+                    typer.echo(f"   {ICONS.DELETE} Removed: {path_str}")
             deleted.append(path_str)
         else:
             if verbose:
-                typer.echo(f"{ICONS.INFO} Skipped {path_str} ({reason})")
+                typer.echo(f"   {ICONS.INFO} Skipped {path_str} ({reason})")
 
     # Cleanup empty root directories
     for root in root_dirs:
         if os.path.exists(root) and not os.listdir(root):
             if dry_run:
-                typer.echo(f"{ICONS.DELETE} (dry-run) would remove empty directory: {root}")
+                typer.echo(f"   {ICONS.DELETE} (dry-run) would remove empty directory: {root}")
             else:
                 os.rmdir(root)
-                typer.echo(f"{ICONS.DELETE} Removed empty directory: {root}")
+                if verbose:
+                    typer.echo(f"   {ICONS.DELETE} Removed empty directory: {root}")
 
     if not deleted:
-        typer.echo(f"{ICONS.INFO} No repositories deleted.")
-
+        if verbose:
+            typer.echo(f"   {ICONS.INFO} No repositories deleted.")
