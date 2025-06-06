@@ -9,7 +9,6 @@ import gits.icons as ICONS
 from gits.utils.repos import get_repo_path
 from gits.config_loader import load_repos
 
-
 def delete(
     ctx: typer.Context,
     repo_group: Optional[str] = typer.Option(None, "--repo-group", "-r", help="Limit to a specific group."),
@@ -29,6 +28,12 @@ def delete(
 
         for repo in group["repositories"]:
             alias = repo["alias"]
+
+            if repo.get("unlisted", False):
+                if verbose:
+                    typer.echo(f"   {ICONS.INFO} Skipped: {alias} -> {target_path} -> unlisted")
+                continue
+
             do_not_delete = repo.get("do_not_delete", False)
             target_path = get_repo_path(group_name, alias, repo.get("target_path"))
 
@@ -42,13 +47,13 @@ def delete(
 
             if dry_run:
                 if verbose:
-                    typer.echo(f"   {ICONS.DELETE} (dry-run) would remove: {alias} --> {target_path}")
+                    typer.echo(f"   {ICONS.DELETE} (dry-run) would remove: {alias} -> {target_path}")
                 else:
                     typer.echo(f"   {ICONS.DELETE} (dry-run) would remove: {alias}")
             else:
                 shutil.rmtree(target_path)
                 if verbose:
-                    typer.echo(f"   {ICONS.DELETE} Deleted: {alias} --> {target_path}")
+                    typer.echo(f"   {ICONS.DELETE} Deleted: {alias} -> {target_path}")
                 else:
                     typer.echo(f"   {ICONS.DELETE} Deleted: {alias}")
                 deleted.append(alias)
@@ -58,17 +63,17 @@ def delete(
         if group_root.exists() and not any(group_root.iterdir()):
             if dry_run:
                 if verbose:
-                    typer.echo(f"   {ICONS.DELETE} (dry-run) would remove: {group_name} --> {group_root}")
+                    typer.echo(f"   {ICONS.DELETE} (dry-run) would remove: {group_name} -> {group_root}")
                 else:
                     typer.echo(f"   {ICONS.DELETE} (dry-run) would remove: {group_name}")
             else:
                 os.rmdir(group_root)
                 if verbose:
-                    typer.echo(f"   {ICONS.DELETE} Deleted: {group_name} --> {group_root}")
+                    typer.echo(f"   {ICONS.DELETE} Deleted: {group_name} -> {group_root}")
                 else:
                     typer.echo(f"   {ICONS.DELETE} Deleted: {group_name}")
         else:
-            typer.echo(f"   {ICONS.WARNING} Not Empty: {group_name} --> {group_root}")
+            typer.echo(f"   {ICONS.WARNING} Not Empty: {group_name} -> {group_root}")
 
     if not deleted and verbose:
         typer.echo(f"   {ICONS.INFO} No repositories deleted.")
