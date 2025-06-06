@@ -21,7 +21,7 @@ def list(
         if repo_group and group_name != repo_group:
             continue
 
-        typer.echo(f"{ICONS.INFO} {group_name}")
+        typer.echo(f"{ICONS.GROUP} {group_name}")
 
         if verbose:
             for repo in group["repositories"]:
@@ -29,4 +29,4 @@ def list(
                     continue
                 alias = repo["alias"]
                 url = repo["url"]
-                typer.echo(f"  - {alias}: {url}")
+                typer.echo(f"   {ICONS.REPO} {alias}")

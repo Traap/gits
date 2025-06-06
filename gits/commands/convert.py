@@ -19,22 +19,28 @@ def convert(
         path = get_repo_path(group_name, alias, repo.get("target_path"))
 
         if not path.exists():
-            typer.echo(f"{ICONS.CONVERT} {alias}: not cloned")
+            if verbose:
+                typer.echo(f"   {ICONS.CONVERT} {alias}: not cloned")
             return
 
-        for file in path.rglob("*.sql"):
+        for file in path.rglob("*"):
             try:
                 with open(file, "r", encoding="utf-16") as f:
                     content = f.read()
                 if dry_run:
-                    typer.echo(f"{ICONS.CONVERT} (dry-run) would convert {file}")
+                    typer.echo(f"   {ICONS.CONVERT} (dry-run) would convert {file}")
                     continue
                 with open(file, "w", encoding="utf-8") as f:
                     f.write(content)
-                typer.echo(f"{ICONS.CONVERT} Converted: {file}")
+                if verbose:
+                    typer.echo(f"   {ICONS.CONVERT} Converted: {file}")
             except UnicodeError:
                 continue
 
     with ThreadPoolExecutor(max_workers=4) as executor:
+        check_group = ""
         for group_name, repo in filtered_repos(repo_group):
+            if group_name != check_group:
+                check_group = group_name
+                typer.echo(f"{ICONS.GROUP} {group_name}")
             executor.submit(convert_repo, group_name, repo)

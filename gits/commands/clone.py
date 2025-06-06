@@ -35,7 +35,7 @@ def clone(
             else:
                 subprocess.run(["git", "clone", "-q", url, str(path)], check=True)
 
-            typer.echo(f"{ICONS.CLONE} cloned: {alias}")
+            typer.echo(f"   {ICONS.CLONE} cloned: {alias}")
         except subprocess.CalledProcessError:
             if verbose:
                 typer.echo(f"{ICONS.ERROR} {alias}: failed to clone")
