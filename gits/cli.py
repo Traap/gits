@@ -36,6 +36,5 @@ def default_command(
 ):
     args = [arg for arg in sys.argv[1:] if not arg.startswith("-")]
     if not args or args[0] not in known_commands:
-        typer.echo(f"{ICONS.STATUS} Defaulting to: gits status")
         status(ctx=ctx, repo_group=repo_group, verbose=verbose, dry_run=dry_run)
 

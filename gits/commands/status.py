@@ -18,13 +18,11 @@ def status(
     check_group = ""
     any_output = False
 
-    typer.echo(f"{ICONS.GROUP} {repo_group}")
-
     for group_name, repo in filtered_repos(repo_group):
         if group_name != check_group:
            check_group = group_name
            if verbose:
-               typer.echo(f"{ICONS.GROUP} {group_name}")
+              typer.echo(f"{ICONS.GROUP} {group_name}")
 
         any_output = False
 

@@ -20,21 +20,37 @@ def pull(
         path = get_repo_path(group_name, alias, repo.get("target_path"))
 
         if not path.exists():
-            typer.echo(f"{ICONS.PULL} {alias}: not cloned")
+            if verbose:
+                typer.echo(f"   {ICONS.PULL} Not pulled: {alias}")
             return
 
         if dry_run:
-            typer.echo(f"{ICONS.PULL} (dry-run) {alias}: would stash and pull")
+            typer.echo(f"   {ICONS.PULL} (dry-run) {alias}: would stash and pull")
             return
 
         try:
-            subprocess.run(["git", "-C", str(path), "stash"], check=True)
-            subprocess.run(["git", "-C", str(path), "pull"], check=True)
-            typer.echo(f"{ICONS.PULL} {alias}: pulled successfully")
+            if verbose:
+                subprocess.run(["git", "-C", "-v", str(path), "stash"], check=True)
+            else:
+                subprocess.run(["git", "-C", "-q", str(path), "stash"], check=True)
+
+            if verbose:
+                subprocess.run(["git", "-C", "-v", str(path), "pull"], check=True)
+            else:
+                subprocess.run(["git", "-C", "-q", str(path), "pull"], check=True)
+
+            if verbose:
+                typer.echo(f"   {ICONS.PULL} Pulled: {alias}")
         except subprocess.CalledProcessError:
-            typer.echo(f"{ICONS.ERROR} {alias}: failed to pull")
+            if verbose:
+                typer.echo(f"{ICONS.ERROR} Pull failed: {alias}")
 
     with ThreadPoolExecutor(max_workers=4) as executor:
+        check_group = ""
         for group_name, repo in filtered_repos(repo_group):
+            if group_name != check_group:
+                check_group = group_name
+                if verbose or dry_run:
+                    typer.echo(f"{ICONS.GROUP} {group_name}")
             executor.submit(pull_repo, group_name, repo)
 

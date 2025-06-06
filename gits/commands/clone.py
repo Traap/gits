@@ -20,20 +20,30 @@ def clone(
         path = get_repo_path(group_name, alias, repo.get("target_path"))
 
         if path.exists():
-            typer.echo(f"{ICONS.CLONE} {alias}: already exists")
+            if verbose:
+                typer.echo(f"   {ICONS.CLONE} {alias}: already exists")
             return
 
         if dry_run:
-            typer.echo(f"{ICONS.CLONE} (dry-run) would clone {url} to {path}")
+            typer.echo(f"   {ICONS.CLONE} (dry-run) would clone {url} to {path}")
             return
 
         path.parent.mkdir(parents=True, exist_ok=True)
         try:
-            subprocess.run(["git", "clone", url, str(path)], check=True)
-            typer.echo(f"{ICONS.CLONE} {alias}: cloned successfully")
+            if verbose:
+                subprocess.run(["git", "clone", "-v", url, str(path)], check=True)
+            else:
+                subprocess.run(["git", "clone", "-q", url, str(path)], check=True)
+
+            typer.echo(f"{ICONS.CLONE} cloned: {alias}")
         except subprocess.CalledProcessError:
-            typer.echo(f"{ICONS.ERROR} {alias}: failed to clone")
+            if verbose:
+                typer.echo(f"{ICONS.ERROR} {alias}: failed to clone")
 
     with ThreadPoolExecutor(max_workers=4) as executor:
+        check_group = ""
         for group_name, repo in filtered_repos(repo_group):
+            if group_name != check_group:
+                check_group = group_name
+                typer.echo(f"{ICONS.GROUP} {group_name}")
             executor.submit(clone_repo, group_name, repo)
