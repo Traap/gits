@@ -21,11 +21,11 @@ def clone(
 
         if path.exists():
             if verbose:
-                typer.echo(f"   {ICONS.CLONE} {alias}: already exists")
+                typer.echo(f"   {ICONS.CLONE} Exists: {alias}")
             return
 
         if dry_run:
-            typer.echo(f"   {ICONS.CLONE} (dry-run) would clone {url} to {path}")
+            typer.echo(f"   {ICONS.CLONE} (dry-run) clone {url} {path}")
             return
 
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -35,10 +35,10 @@ def clone(
             else:
                 subprocess.run(["git", "clone", "-q", url, str(path)], check=True)
 
-            typer.echo(f"   {ICONS.CLONE} cloned: {alias}")
+            typer.echo(f"   {ICONS.CLONE} Cloned: {alias}")
         except subprocess.CalledProcessError:
             if verbose:
-                typer.echo(f"{ICONS.ERROR} {alias}: failed to clone")
+                typer.echo(f"{ICONS.ERROR} Failed: {alias}")
 
     with ThreadPoolExecutor(max_workers=4) as executor:
         check_group = ""

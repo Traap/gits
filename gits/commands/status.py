@@ -44,7 +44,6 @@ def status(
             )
             status_output = result.stdout.strip() or "clean"
             if verbose:
-                # typer.echo(f"   {ICONS.STATUS} {alias}: {status_output}")
                 typer.echo(f"   {ICONS.STATUS} {status_output}: {alias}")
 
             any_output = True

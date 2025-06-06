@@ -30,20 +30,22 @@ def pull(
 
         try:
             if verbose:
-                subprocess.run(["git", "-C", "-v", str(path), "stash"], check=True)
-            else:
-                subprocess.run(["git", "-C", "-q", str(path), "stash"], check=True)
+                typer.echo(f"   {ICONS.PULL} Started: {alias}")
 
-            if verbose:
-                subprocess.run(["git", "-C", "-v", str(path), "pull"], check=True)
-            else:
-                subprocess.run(["git", "-C", "-q", str(path), "pull"], check=True)
+            git_cmd = "git stash && git pull"
+            if not verbose:
+                git_cmd = "git stash -q && git pull -q"
+
+            subprocess.run(
+                ["bash", "-c", git_cmd],
+                cwd=path,
+                check=True
+            )
 
             if verbose:
                 typer.echo(f"   {ICONS.PULL} Pulled: {alias}")
         except subprocess.CalledProcessError:
-            if verbose:
-                typer.echo(f"{ICONS.ERROR} Pull failed: {alias}")
+            typer.echo(f"{ICONS.ERROR} Failed: {alias}")
 
     with ThreadPoolExecutor(max_workers=4) as executor:
         check_group = ""
