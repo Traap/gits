@@ -29,16 +29,17 @@ def delete(
         for repo in group["repositories"]:
             alias = repo["alias"]
 
-            if repo.get("unlisted", False):
-                if verbose:
-                    typer.echo(f"   {ICONS.INFO} Skipped: {alias} -> {target_path} -> unlisted")
-                continue
-
             do_not_delete = repo.get("do_not_delete", False)
             target_path = get_repo_path(group_name, alias, repo.get("target_path"))
 
             if not target_path.exists():
                 continue
+
+            if repo.get("unlisted", False):
+                if verbose:
+                    typer.echo(f"   {ICONS.INFO} Skipped: {alias} -> {target_path} -> unlisted")
+                continue
+
 
             if do_not_delete:
                 if verbose:
