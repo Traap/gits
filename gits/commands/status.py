@@ -31,7 +31,7 @@ def status(
 
         if not path.exists():
             if verbose:
-                typer.echo(f"   {ICONS.WARNING} Not cloned: {alias}")
+                typer.echo(f"   {ICONS.WARNING}Not cloned: {alias}")
             any_output = True
             continue
 
