@@ -113,9 +113,10 @@ traap:
 
 ## 🧠 Usage
 ### 🧪 Help
-```
+```bash
 gits --help
 ```
+```console
  Usage: gits [OPTIONS] COMMAND [ARGS]...
 
  Manage git repositories defined in YAML configuration.
@@ -144,21 +145,24 @@ gits --help
 │ pull      Pull changes for all repositories including unlisted ones.         │
 │ status    Print git status for all repositories.                             │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+```
 
 ### 🧪 List
-```
+```bash
 gits List
 ```
+```console
 🗂️ editor
 🗂️ fzf
 🗂️ hyprland
 🗂️ plugins
 🗂️ traap
-
-
 ```
+
+```bash
 gits list -v
 ```
+```console
 🗂️ editor
    🗃️ LazyVim
    🗃️ lazy.nvim
@@ -180,20 +184,23 @@ gits list -v
    🗃️ vimtex
 
 ```
+```bash
 gits list -v -r traap
 ```
+```console
 🗂️ traap
    🗃️ archlinux
    🗃️ gits
    🗃️ nvims
    🗃️ vimtex
-
+```
 
 ### 🧪 Clone
 Clone runs 4 jobs concurrently so console output is interwoven.
-```
+```bash
 gits clone
 ```
+```console
 🗂️ editor
 🗂️ fzf
 🗂️ hyprland
@@ -212,8 +219,10 @@ gits clone
    📥 Cloned: Dots
 
 ```
+```bash
 gits clone -v -n
 ```
+```console
 🗂️ editor
    📥 (dry-run) clone https://github.com/LazyVim/starter /home/traap/editor/LazyVim
    📥 (dry-run) clone https://github.com/folke/lazy.nvim /home/traap/editor/lazy.nvim
@@ -234,9 +243,10 @@ gits clone -v -n
    ⚠️ Exists: nvims
    ⚠️ Exists: vimtex
 
-```
+```bash
 gits clone -v -r traap
 ```
+```console
 🗂️ traap
 Cloning into '/home/traap/traap/archlinux'...
 Cloning into '/home/traap/traap/gits'...
@@ -248,16 +258,17 @@ POST git-upload-pack (gzip 1623 to 846 bytes)
    📥 Cloned: gits
    📥 Cloned: vimtex
    📥 Cloned: nvims
-
-### 🧪 Status
 ```
+### 🧪 Status
+```bash
 gits status
 ```
 **No output when there are not any errors.**
 
-```
+```bash
 gits status -v
 ```
+```console
 🗂️ editor
    🧹 Clean: LazyVim
    🧹 Clean: lazy.nvim
@@ -279,8 +290,10 @@ gits status -v
    🧹 Clean: vimtex
 
 ```
+```bash
 gits status -v -r traap
 ```
+```concole
 🗂️ traap
    🧹 Clean: archlinux
    🧹 Clean: gits
@@ -291,9 +304,10 @@ gits status -v -r traap
   stash@{0}: On master: gits status demo
 
 ### 🧪 Clean
-```
+```console
 gits clean -n
 ```
+```console
 🧹 (dry-run) would clean LazyVim at /home/traap/editor/LazyVim
 🧹 (dry-run) would clean lazy.nvim at /home/traap/editor/lazy.nvim
 🧹 (dry-run) would clean neovim at /home/traap/editor/neovim
@@ -310,8 +324,10 @@ gits clean -n
 🧹 (dry-run) would clean nvims at /home/traap/traap/nvims
 
 ```
+```bash
 gits clean -v
 ```
+```console
 HEAD is now at 803bc18 docs: Explain more about how to add and remove autocmds (#105)
 HEAD is now at 6c3bda4 chore(main): release 11.17.1 (#1927)
 HEAD is now at 3ec3e97 Support opening GitHub URLs via WSL (#75)
@@ -342,9 +358,10 @@ HEAD is now at 4b4f18b1 merge: fix test-tkz-euclide.vim
 Removing new-file
 🧹 vimtex: cleaned successfully
 
-```
+```bash
 gits clean -v -r traap -n
 ```
+```console
 🧹 (dry-run) would clean archlinux at /home/traap/traap/archlinux
 🧹 (dry-run) would clean gits at /home/traap/traap/gits
 🧹 (dry-run) would clean vimtex at /home/traap/traap/vimtex
@@ -352,9 +369,10 @@ gits clean -v -r traap -n
 
 ### Doctor
 Doctor does not support dryrun or verbose.
-```
+```bash
 gits doctor
 ```
+```console
 🧪 Running system diagnostics.
    ✅ Python >= 3.8: 3.13.3
    ✅ git found in PATH
@@ -419,13 +437,11 @@ gits doctor
       🧠 Found: /home/traap/traap
 🧪 Diagnostics complete.
 
-```
-gits doctor -v
-```
 
-```
+```bash
 gits doctor -r traap
 ```
+```console
 🧪 Running system diagnostics.
    ✅ Python >= 3.8: 3.13.3
    ✅ git found in PATH
@@ -449,7 +465,7 @@ gits doctor -r traap
       🧠 path: /home/traap/traap/vimtex
       🧠 Found: /home/traap/traap
 🧪 Diagnostics complete.
-
+```
 
 🛠️ Development
 Clone and test locally:
