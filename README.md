@@ -302,6 +302,7 @@ gits status -v -r traap
 	 M README.md
 	?? new-file
   stash@{0}: On master: gits status demo
+````
 
 ### 🧪 Clean
 ```console
@@ -485,9 +486,10 @@ gits --help
 Delete will remove all repos within a group and the group itself unless 1) a
 repo is marked do_not_delete or repo untracked.  Untracked repos are not listed
 in repository_locations.yml.
-```
+```bash
 gits delete
 ```
+```console
 🗂️ editor
    ⚠️ Not Empty: editor -> /home/traap/editor
 🗂️ fzf
@@ -507,8 +509,10 @@ gits delete
    ⚠️ Not Empty: traap -> /home/traap/traap
 
 ```
+```bash
 gits delete -v -n
 ```
+```console
 🗂️ editor
    🗑️ (dry-run) would remove: LazyVim -> /home/traap/editor/LazyVim
    🗑️ (dry-run) would remove: lazy.nvim -> /home/traap/editor/lazy.nvim
@@ -536,8 +540,10 @@ gits delete -v -n
    🧠 No repositories deleted.
 
 ```
+```bash
 gits delete -v -r traap
 ```
+```console
 🗂️ traap
    🗑️ Deleted: archlinux -> /home/traap/traap/archlinux
    🧠 Skipped gits (do_not_delete = true)
@@ -546,13 +552,16 @@ gits delete -v -r traap
    ⚠️ Not Empty: traap -> /home/traap/traap
 
 ```
+```bash
 gits delete -v -r editor
+```
+```console
 🗂️ editor
    🗑️ Deleted: LazyVim -> /home/traap/editor/LazyVim
    🗑️ Deleted: lazy.nvim -> /home/traap/editor/lazy.nvim
    🗑️ Deleted: neovim -> /home/traap/editor/neovim
    🗑️ Deleted: editor -> /home/traap/editor
-
+```
 
 ## 🛠️ Development
 Clone and test locally:
