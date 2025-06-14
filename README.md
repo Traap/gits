@@ -293,8 +293,7 @@ gits status -v
 ```bash
 gits status -v -r traap
 ```
-
-```concole
+```console
 🗂️ traap
    🧹 Clean: archlinux
    🧹 Clean: gits
