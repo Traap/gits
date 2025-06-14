@@ -305,7 +305,7 @@ gits status -v -r traap
 ```
 
 ### 🧪 Clean
-```console
+```bash
 gits clean -n
 ```
 ```console
@@ -438,7 +438,7 @@ gits doctor
       🧠 path: /home/traap/traap/vimtex
       🧠 Found: /home/traap/traap
 🧪 Diagnostics complete.
-
+```
 
 ```bash
 gits doctor -r traap
