@@ -31,20 +31,32 @@ def status(
 
         if not path.exists():
             if verbose:
-                typer.echo(f"   {ICONS.WARNING}Not cloned: {alias}")
+                typer.echo(f"   {ICONS.WARNING} Not cloned: {alias}")
             any_output = True
             continue
 
         try:
-            result = subprocess.run(
-                ["git", "-C", str(path), "status", "--short"],
+            status = subprocess.run(
+                ["git", "-C", str(path), "status", "--short", '--untracked'],
                 capture_output=True,
                 text=True,
                 check=True,
             )
-            status_output = result.stdout.strip() or "clean"
+
+            stash = subprocess.run(
+                ["git", "-C", str(path), "stash", "list" ],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
             if verbose:
-                typer.echo(f"   {ICONS.STATUS} {status_output}: {alias}")
+                output = status.stdout.rstrip() + stash.stdout.rstrip()
+                if output:
+                    output = "\n".join(f"\t{line}" for line in output.splitlines())
+                    typer.echo(f"   {ICONS.INFO} Modified: {alias}\n{output}")
+                else:
+                    typer.echo(f"   {ICONS.CLEAN} Clean: {alias}")
 
             any_output = True
         except subprocess.CalledProcessError:
