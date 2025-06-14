@@ -242,7 +242,7 @@ gits clone -v -n
    ⚠️ Exists: gits
    ⚠️ Exists: nvims
    ⚠️ Exists: vimtex
-
+```
 ```bash
 gits clone -v -r traap
 ```
