@@ -21,7 +21,7 @@ def clone(
 
         if path.exists():
             if verbose:
-                typer.echo(f"   {ICONS.CLONE} Exists: {alias}")
+                typer.echo(f"   {ICONS.WARNING} Exists: {alias}")
             return
 
         if dry_run:

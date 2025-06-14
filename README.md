@@ -249,12 +249,9 @@ POST git-upload-pack (gzip 1623 to 846 bytes)
    📥 Cloned: vimtex
    📥 Cloned: nvims
 
-```
-
 ### 🧪 Status
 ```
 gits status
-
 ```
 **No output when there are not any errors.**
 
@@ -283,7 +280,6 @@ gits status -v
 
 ```
 gits status -v -r traap
-
 ```
 🗂️ traap
    🧹 Clean: archlinux
@@ -312,7 +308,6 @@ gits clean -n
 🧹 (dry-run) would clean archlinux at /home/traap/traap/archlinux
 🧹 (dry-run) would clean vimtex at /home/traap/traap/vimtex
 🧹 (dry-run) would clean nvims at /home/traap/traap/nvims
-
 
 ```
 gits clean -v
@@ -346,16 +341,115 @@ HEAD is now at c6d4631 Add installation done message.
 HEAD is now at 4b4f18b1 merge: fix test-tkz-euclide.vim
 Removing new-file
 🧹 vimtex: cleaned successfully
-```
 
 ```
 gits clean -v -r traap -n
+```
 🧹 (dry-run) would clean archlinux at /home/traap/traap/archlinux
 🧹 (dry-run) would clean gits at /home/traap/traap/gits
 🧹 (dry-run) would clean vimtex at /home/traap/traap/vimtex
 🧹 (dry-run) would clean nvims at /home/traap/traap/nvims
 
+### Doctor
+Doctor does not support dryrun or verbose.
 ```
+gits doctor
+```
+🧪 Running system diagnostics.
+   ✅ Python >= 3.8: 3.13.3
+   ✅ git found in PATH
+   ✅ /home/traap/.config/gits/repository_locations.yml found
+🗂️ None
+   ✅ Repos: 14
+   ✅ Alias: LazyVim
+      🧠 Target_path: True
+      ⚠️ path: not found
+      ⚠️ Not Found: /home/traap/editor
+   ✅ Alias: lazy.nvim
+      🧠 Target_path: True
+      ⚠️ path: not found
+      ⚠️ Not Found: /home/traap/editor
+   ✅ Alias: neovim
+      🧠 Target_path: True
+      ⚠️ path: not found
+      ⚠️ Not Found: /home/traap/editor
+   ✅ Alias: fzf
+      🧠 Target_path: True
+      ⚠️ path: not found
+      ⚠️ Not Found: /home/traap/fzf
+   ✅ Alias: everything
+      🧠 Target_path: True
+      ⚠️ path: not found
+      ⚠️ Not Found: /home/traap/fzf
+   ✅ Alias: Dots
+      🧠 Target_path: True
+      ⚠️ path: not found
+      ⚠️ Not Found: /home/traap/hyprland
+   ✅ Alias: Arch
+      🧠 Target_path: True
+      ⚠️ path: not found
+      ⚠️ Not Found: /home/traap/hyprland
+   ✅ Alias: neo-tree
+      🧠 Target_path: True
+      ⚠️ path: not found
+      ⚠️ Not Found: /home/traap/plugins
+   ✅ Alias: telescope
+      🧠 Target_path: True
+      ⚠️ path: not found
+      ⚠️ Not Found: /home/traap/plugins
+   ✅ Alias: fugitive
+      🧠 Target_path: True
+      ⚠️ path: not found
+      ⚠️ Not Found: /home/traap/plugins
+   ✅ Alias: archlinux
+      🧠 Target_path: True
+      🧠 path: /home/traap/traap/archlinux
+      🧠 Found: /home/traap/traap
+   ✅ Alias: gits
+      🧠 Target_path: True
+      🧠 path: /home/traap/traap/gits
+      🧠 Found: /home/traap/traap
+   ✅ Alias: nvims
+      🧠 Target_path: True
+      🧠 path: /home/traap/traap/nvims
+      🧠 Found: /home/traap/traap
+   ✅ Alias: vimtex
+      🧠 Target_path: True
+      🧠 path: /home/traap/traap/vimtex
+      🧠 Found: /home/traap/traap
+🧪 Diagnostics complete.
+
+```
+gits doctor -v
+```
+
+```
+gits doctor -r traap
+```
+🧪 Running system diagnostics.
+   ✅ Python >= 3.8: 3.13.3
+   ✅ git found in PATH
+   ✅ /home/traap/.config/gits/repository_locations.yml found
+🗂️ traap
+   ✅ Repos: 4
+   ✅ Alias: archlinux
+      🧠 Target_path: True
+      🧠 path: /home/traap/traap/archlinux
+      🧠 Found: /home/traap/traap
+   ✅ Alias: gits
+      🧠 Target_path: True
+      🧠 path: /home/traap/traap/gits
+      🧠 Found: /home/traap/traap
+   ✅ Alias: nvims
+      🧠 Target_path: True
+      🧠 path: /home/traap/traap/nvims
+      🧠 Found: /home/traap/traap
+   ✅ Alias: vimtex
+      🧠 Target_path: True
+      🧠 path: /home/traap/traap/vimtex
+      🧠 Found: /home/traap/traap
+🧪 Diagnostics complete.
+
 
 🛠️ Development
 Clone and test locally:
