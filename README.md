@@ -1,4 +1,4 @@
-# 🧠 gits
+
 
 `gits` is a Git repository group manager. It helps you efficiently clone, pull,
 clean, convert, delete, and track the status of many repositories—organized by
@@ -293,6 +293,7 @@ gits status -v
 ```bash
 gits status -v -r traap
 ```
+
 ```concole
 🗂️ traap
    🧹 Clean: archlinux
@@ -302,7 +303,7 @@ gits status -v -r traap
 	 M README.md
 	?? new-file
   stash@{0}: On master: gits status demo
-````
+```
 
 ### 🧪 Clean
 ```console
@@ -358,7 +359,7 @@ HEAD is now at c6d4631 Add installation done message.
 HEAD is now at 4b4f18b1 merge: fix test-tkz-euclide.vim
 Removing new-file
 🧹 vimtex: cleaned successfully
-
+```
 ```bash
 gits clean -v -r traap -n
 ```
@@ -367,6 +368,7 @@ gits clean -v -r traap -n
 🧹 (dry-run) would clean gits at /home/traap/traap/gits
 🧹 (dry-run) would clean vimtex at /home/traap/traap/vimtex
 🧹 (dry-run) would clean nvims at /home/traap/traap/nvims
+```
 
 ### Doctor
 Doctor does not support dryrun or verbose.
