@@ -39,6 +39,7 @@ traap:
   - repositories:
     - alias: archlinux
       url: git@github.com:Traap/bootstrap-archlinux
+      do_not_delete: false
     - alias: gits
       url: git@github.com:Traap/gits
       do_not_delete: true
@@ -47,4 +48,3 @@ traap:
       do_not_delete: true
     - alias: vimtex
       url: https://github.com/lervag/vimtex
-      do_not_delete: false
