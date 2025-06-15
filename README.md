@@ -46,7 +46,7 @@ To remove everything installed by gits:
 > Removes `gits` from `~/.gits` and removes links the CLI to `~/.local/bin/gits`.
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Traap/gits/master/install.sh)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Traap/gits/master/uninstall.sh)"
 ```
 
 This will:
