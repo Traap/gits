@@ -63,7 +63,7 @@ def clean(
             if verbose:
                 output = reset.stdout.rstrip() + "\n" + clean.stdout.rstrip()
                 if output:
-                    output = "\n".join(f"\t\t\t{line}" for line in output.splitlines())
+                    output = "\n".join(f"\t\t{line}" for line in output.splitlines())
                     typer.echo(f"   {ICONS.CLEAN} Modified: {alias}\n{output}")
                 else:
                     typer.echo(f"   {ICONS.INFO} Clean: {alias}")
