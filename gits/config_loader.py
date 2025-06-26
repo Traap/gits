@@ -19,17 +19,26 @@ def load_repos():
             elif "repositories" in entry:
                 group["repositories"].extend(entry["repositories"])
 
-        # Track existing aliases to avoid duplicates
         known_aliases = {repo["alias"] for repo in group["repositories"]}
         root_dir = group["root_dir"]
 
-        # Automatically add unlisted subdirectories as new repositories
+        # Avoid adding subdirectories of listed repositories
+        listed_paths = {
+            os.path.realpath(os.path.join(root_dir, repo["alias"]))
+            for repo in group["repositories"]
+        }
+
         if root_dir and os.path.isdir(root_dir):
             for entry in os.scandir(root_dir):
-                if entry.is_dir() and entry.name not in known_aliases:
+                entry_path = os.path.realpath(entry.path)
+                if (
+                    entry.is_dir()
+                    and entry.name not in known_aliases
+                    and entry_path not in listed_paths
+                ):
                     group["repositories"].append({
                         "alias": entry.name,
-                        "target_path": os.path.join(root_dir, entry.name),
+                        "target_path": entry_path,
                         "unlisted": True
                     })
 

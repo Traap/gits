@@ -19,6 +19,9 @@ def status(
     any_output = False
 
     for group_name, repo in filtered_repos(repo_group):
+        if repo.get("unlisted", False):
+            continue
+
         if group_name != check_group:
            check_group = group_name
            if verbose:
@@ -61,7 +64,7 @@ def status(
             any_output = True
         except subprocess.CalledProcessError:
             if verbose:
-                typer.echo(f"   {ICONS.ERROR} {alias}: is not a git repositories")
+                typer.echo(f"   {ICONS.ERROR} {alias}: is not a git repository")
             any_output = True
 
     if not any_output:

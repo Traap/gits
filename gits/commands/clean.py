@@ -14,25 +14,66 @@ def clean(
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Run without making changes."),
 ):
     """Clean listed repositories by resetting and removing untracked files, including subfolders."""
-    def clean_repo(group_name, repo):
+    check_group = ""
+    any_output = False
+
+    for group_name, repo in filtered_repos(repo_group):
+        if repo.get("unlisted", False):
+            continue
+
+        if group_name != check_group:
+           check_group = group_name
+           if verbose:
+              typer.echo(f"{ICONS.GROUP} {group_name}")
+
+        any_output = False
+
         alias = repo["alias"]
         path = get_repo_path(group_name, alias, repo.get("target_path"))
 
+        # Skip directories that are not initialized Git repositories
+        if not (path / ".git").exists():
+            continue
+
         if not path.exists():
-            typer.echo(f"{ICONS.CLEAN} {alias}: not cloned")
-            return
+            if verbose:
+                typer.echo(f"   {ICONS.WARNING} Not cloned: {alias}")
+            any_output = True
+            continue
 
         if dry_run:
             typer.echo(f"{ICONS.CLEAN} (dry-run) would clean {alias} at {path}")
-            return
+            continue
 
         try:
-            subprocess.run(["git", "-C", str(path), "reset", "--hard"], check=True)
-            subprocess.run(["git", "-C", str(path), "clean", "-fdx"], check=True)
-            typer.echo(f"{ICONS.CLEAN} {alias}: cleaned successfully")
-        except subprocess.CalledProcessError:
-            typer.echo(f"{ICONS.ERROR} {alias}: failed to clean")
+            reset = subprocess.run(
+                ["git", "-C", str(path), "reset", "--hard"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        for group_name, repo in filtered_repos(repo_group):
-            executor.submit(clean_repo, group_name, repo)
+            clean = subprocess.run(
+                ["git", "-C", str(path), "clean", "-ffdx" ],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            if verbose:
+                output = reset.stdout.rstrip() + "\n" + clean.stdout.rstrip()
+                if output:
+                    output = "\n".join(f"\t\t\t{line}" for line in output.splitlines())
+                    typer.echo(f"   {ICONS.CLEAN} Modified: {alias}\n{output}")
+                else:
+                    typer.echo(f"   {ICONS.INFO} Clean: {alias}")
+
+            any_output = True
+        except subprocess.CalledProcessError:
+            if verbose:
+                typer.echo(f"   {ICONS.ERROR} {alias}: is not a git repository")
+            any_output = True
+
+    if not any_output:
+        typer.echo(f"   {ICONS.INFO} All repositories are clean.")
+

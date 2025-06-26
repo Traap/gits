@@ -15,3 +15,4 @@ def filtered_repos(repo_group):
         if not repo_group or group["group_name"] == repo_group
         for repo in group["repositories"]
     ]
+
