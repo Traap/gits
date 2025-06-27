@@ -5,9 +5,9 @@ import platform
 from typing import Optional
 import typer
 
-from gits.config_loader import CONFIG_FILE
+from gits.utils.config_loader import CONFIG_FILE
 
-import gits.icons as ICONS
+import gits.ui.icons as ICONS
 from gits.utils.repos import filtered_repos
 
 def doctor(

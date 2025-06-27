@@ -1,13 +1,9 @@
-from pathlib import Path
 from typing import Optional
-from concurrent.futures import ThreadPoolExecutor
-import subprocess
 
 import typer
-import gits.icons as ICONS
-from gits.utils.repos import get_repo_path, filtered_repos
+import gits.ui.icons as ICONS
 
-from gits.config_loader import load_repos
+from gits.utils.config_loader import load_repos
 
 def list(
     ctx: typer.Context,
@@ -29,4 +25,4 @@ def list(
                     continue
                 alias = repo["alias"]
                 url = repo["url"]
-                typer.echo(f"   {ICONS.REPO} {alias}")
+                typer.echo(f"   {ICONS.REPO} {alias} -> {url}")

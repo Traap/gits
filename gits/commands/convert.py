@@ -1,10 +1,8 @@
-from pathlib import Path
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
-import subprocess
 
 import typer
-import gits.icons as ICONS
+import gits.ui.icons as ICONS
 from gits.utils.repos import get_repo_path, filtered_repos
 
 def convert(

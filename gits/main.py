@@ -9,13 +9,22 @@ from gits.commands.delete import delete
 from gits.commands.doctor import doctor
 from gits.commands.list import list
 from gits.commands.pull import pull
+from gits.commands.stash import stash
 from gits.commands.status import status
-
-import gits.icons as ICONS
 
 app = typer.Typer(help="Manage git repositories defined in YAML configuration.")
 
-known_commands = {"clean", "clone", "convert", "delete", "doctor", "list", "pull", "status"}
+known_commands = {
+    "clean",
+    "clone",
+    "convert",
+    "delete",
+    "doctor",
+    "list",
+    "pull",
+    "stash",
+    "status"
+    }
 
 # Register each command
 app.command()(clean)
@@ -25,6 +34,7 @@ app.command()(doctor)
 app.command()(delete)
 app.command()(list)
 app.command()(pull)
+app.command()(stash)
 app.command()(status)
 
 @app.callback(invoke_without_command=True)

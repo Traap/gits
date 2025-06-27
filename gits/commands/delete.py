@@ -1,13 +1,12 @@
 import os
 import shutil
-from pathlib import Path
 from typing import Optional
 
 import typer
 
-import gits.icons as ICONS
+import gits.ui.icons as ICONS
 from gits.utils.repos import get_repo_path
-from gits.config_loader import load_repos
+from gits.utils.config_loader import load_repos
 
 def delete(
     ctx: typer.Context,

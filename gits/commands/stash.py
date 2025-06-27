@@ -6,13 +6,13 @@ import gits.ui.icons as ICONS
 from gits.utils.repos import get_repo_path, filtered_repos
 
 
-def status(
+def stash(
     ctx: typer.Context,
     repo_group: Optional[str] = typer.Option(None, "--repo-group", "-r", help="Limit to a specific group."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output."),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Run without making changes."),
 ):
-    """Print git status for all repositories."""
+    """Print stashed entries in all repositories."""
     check_group = ""
     any_output = False
 
@@ -37,25 +37,18 @@ def status(
             continue
 
         try:
-            status = subprocess.run(
-                ["git", "-C", str(path), "status", "--short", "--untracked"],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-
-            stash = subprocess.run(
-                ["git", "-C", str(path), "stash", "list" ],
+            pop = subprocess.run(
+                ["git", "-C", str(path), "stash", "list"],
                 capture_output=True,
                 text=True,
                 check=True,
             )
 
             if verbose:
-                output = status.stdout.rstrip() + stash.stdout.rstrip()
+                output = pop.stdout.rstrip()
                 if output:
                     output = "\n".join(f"\t{line}" for line in output.splitlines())
-                    typer.echo(f"   {ICONS.INFO} Modified: {alias}\n{output}")
+                    typer.echo(f"   {ICONS.INFO} Stash: {alias}\n{output}")
                 else:
                     typer.echo(f"   {ICONS.CLEAN} Clean: {alias}")
 

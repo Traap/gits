@@ -1,12 +1,10 @@
-from pathlib import Path
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
 import subprocess
 
 import typer
-import gits.icons as ICONS
+import gits.ui.icons as ICONS
 from gits.utils.repos import get_repo_path, filtered_repos
-
 
 def pull(
     ctx: typer.Context,
@@ -30,10 +28,8 @@ def pull(
 
         try:
             if verbose:
-                typer.echo(f"   {ICONS.PULL} Started: {alias}")
-
-            git_cmd = "git stash && git pull"
-            if not verbose:
+                git_cmd = "git stash && git pull"
+            else:
                 git_cmd = "git stash -q && git pull -q"
 
             subprocess.run(
