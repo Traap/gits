@@ -2,18 +2,18 @@
 
 set -euo pipefail
 
-REPO_NAME=".gits"
-INSTALL_DIR="$HOME/$REPO_NAME"
+PRODUCT_LOCATION=".gits"
+INSTALL_DIR="$HOME/$PRODUCT_LOCATION"
 VENV_DIR="$INSTALL_DIR/.venv"
-CLI_ENTRY="gits"
-BIN_LINK="$HOME/.local/bin/$CLI_ENTRY"
-CONFIG_FILE="$INSTALL_DIR/repository_locations.yml"
+PRODUCT_NAME="gits"
+BIN_LINK="$HOME/.local/bin/$PRODUCT_NAME"
+CONFIG_FILE="$HOME/.config/$PRODUCT_NAME/repository_locations.yml"
 
-echo "📦 Installing $CLI_ENTRY to $INSTALL_DIR"
+echo "📦 Installing $PRODUCT_NAME to $INSTALL_DIR"
 
 # Ensure ~/.local/bin exists and is on PATH
 mkdir -p "$HOME/.local/bin"
-if ! command -v "$CLI_ENTRY" &>/dev/null && [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+if ! command -v "$PRODUCT_NAME" &>/dev/null && [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
   echo "⚠️  Please add \$HOME/.local/bin to your PATH."
 fi
 
@@ -50,15 +50,16 @@ echo "🔧 Installing project..."
 uv pip install -e .
 
 # Symlink CLI
-if [[ -f "$VENV_DIR/bin/$CLI_ENTRY" ]]; then
-  ln -sf "$VENV_DIR/bin/$CLI_ENTRY" "$BIN_LINK"
-  echo "🔗 Symlinked: $BIN_LINK → $VENV_DIR/bin/$CLI_ENTRY"
+if [[ -f "$VENV_DIR/bin/$PRODUCT_NAME" ]]; then
+  ln -sf "$VENV_DIR/bin/$PRODUCT_NAME" "$BIN_LINK"
+  echo "🔗 Symlinked: $BIN_LINK → $VENV_DIR/bin/$PRODUCT_NAME"
 fi
 
 # Copy default config file if not already customized
 if [[ ! -f "$CONFIG_FILE" ]]; then
+  mkdir -pv "$(dirname "$CONFIG_FILE")"
   cp -v repository_locations.yml "$CONFIG_FILE"
   echo "📝 Installed default repository_locations.yml to $INSTALL_DIR"
 fi
 
-echo "✅ Done! You can now run: $CLI_ENTRY"
+echo "✅ Done! You can now run: $PRODUCT_NAME"
