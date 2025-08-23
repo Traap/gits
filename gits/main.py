@@ -10,6 +10,7 @@ from gits.commands.doctor import doctor
 from gits.commands.list import list
 from gits.commands.pull import pull
 from gits.commands.stash import stash
+from gits.commands.pop import pop
 from gits.commands.status import status
 
 app = typer.Typer(help="Manage git repositories defined in YAML configuration.")
@@ -21,6 +22,7 @@ known_commands = {
     "delete",
     "doctor",
     "list",
+    "pop",
     "pull",
     "stash",
     "status"
@@ -30,9 +32,10 @@ known_commands = {
 app.command()(clean)
 app.command()(clone)
 app.command()(convert)
-app.command()(doctor)
 app.command()(delete)
+app.command()(doctor)
 app.command()(list)
+app.command()(pop)
 app.command()(pull)
 app.command()(stash)
 app.command()(status)
