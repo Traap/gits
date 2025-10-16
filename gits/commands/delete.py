@@ -8,6 +8,13 @@ import gits.ui.icons as ICONS
 from gits.utils.repos import get_repo_path
 from gits.utils.config_loader import load_repos
 
+def on_rm_error(func, path, exc_info):
+    try:
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+    except Exception:
+        pass
+
 def delete(
     ctx: typer.Context,
     repo_group: Optional[str] = typer.Option(None, "--repo-group", "-r", help="Limit to a specific group."),
@@ -51,7 +58,7 @@ def delete(
                 else:
                     typer.echo(f"   {ICONS.DELETE} (dry-run) would remove: {alias}")
             else:
-                shutil.rmtree(target_path)
+                shutil.rmtree(target_path, onerror=on_rm_error)
                 if verbose:
                     typer.echo(f"   {ICONS.DELETE} Deleted: {alias} -> {target_path}")
                 else:
