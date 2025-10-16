@@ -14,34 +14,51 @@ def pull(
 ):
     """Pull changes for all repositories including unlisted ones."""
     def pull_repo(group_name, repo):
+        any_output = False
         alias = repo["alias"]
         path = get_repo_path(group_name, alias, repo.get("target_path"))
 
         if not path.exists():
             if verbose:
                 typer.echo(f"   {ICONS.PULL} Not pulled: {alias}")
+                any_output = True
             return
 
         if dry_run:
             typer.echo(f"   {ICONS.PULL} (dry-run) {alias}: would stash and pull")
+            any_output = True
             return
 
-        try:
-            if verbose:
-                git_cmd = "git stash && git pull"
-            else:
-                git_cmd = "git stash -q && git pull -q"
 
-            subprocess.run(
-                ["bash", "-c", git_cmd],
-                cwd=path,
-                check=True
+        try:
+            stash = subprocess.run(
+                ["git", "-C", str(path), "stash"],
+                capture_output=True,
+                text=True,
+                check=True,
             )
 
+            pull = subprocess.run(
+                ["git", "-C", str(path), "pull"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
             if verbose:
-                typer.echo(f"   {ICONS.PULL} Pulled: {alias}")
+                output = "Stash: " + stash.stdout.rstrip() + ". Pull: " + pull.stdout.rstrip()
+                if output:
+                    output = "\n".join(f"\t    {line}" for line in output.splitlines())
+                    typer.echo(f"   {ICONS.PULL} Pull: {alias}\n{output}")
+                else:
+                    typer.echo(f"   {ICONS.CLEAN} Clean: {alias}")
+            any_output = True
+
         except subprocess.CalledProcessError:
             typer.echo(f"{ICONS.ERROR} Failed: {alias}")
+            any_output = True
+
+        if not any_output:
+            typer.echo(f"   {ICONS.INFO} All repositories are clean.")
 
     with ThreadPoolExecutor(max_workers=4) as executor:
         check_group = ""
