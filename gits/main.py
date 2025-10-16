@@ -1,6 +1,15 @@
 import sys
+import io
 import typer
 from typing import Optional
+
+# ---------------------------------------------------------------------------
+# 🧩 Ensure UTF-8 output across all platforms. This prevendts UnicodeEncodeError
+# on Windows.
+# ---------------------------------------------------------------------------
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 
 from gits.commands.clean import clean
 from gits.commands.clone import clone
