@@ -1,4 +1,5 @@
 import os
+import stat
 import shutil
 from typing import Optional
 
@@ -10,7 +11,8 @@ from gits.utils.config_loader import load_repos
 
 def on_rm_error(func, path, exc_info):
     try:
-        os.chmod(path, stat.S_IWRITE)
+        mode = os.stat(path).st_mode
+        os.chmod(path, mode | stat.S_IWRITE)
         func(path)
     except Exception:
         pass
