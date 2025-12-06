@@ -55,7 +55,7 @@ def pop(
             any_output = True
         except subprocess.CalledProcessError:
             if verbose:
-                typer.echo(f"   {ICONS.ERROR} {alias}: is not a git repository")
+                typer.echo(f"   {ICONS.CLEAN} Clean: {alias}")
             any_output = True
 
     if not any_output:
