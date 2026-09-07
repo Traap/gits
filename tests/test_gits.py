@@ -1,3 +1,4 @@
+import os
 import subprocess
 import tempfile
 import unittest
@@ -55,6 +56,25 @@ class RepositoryTests(unittest.TestCase):
     def test_missing_root_defaults_to_home(self):
         self.config.write_text('example:\n  - repositories:\n      - alias: repo\n        url: unused\n')
         self.assertEqual(load_repos()[0].repositories[0].path, Path.home() / 'example/repo')
+
+    def test_relative_root_is_home_relative_from_any_directory(self):
+        self.init_repo()
+        data = yaml.safe_load(self.config.read_text())
+        data['example'][0]['root_dir'] = 'custom-root'
+        self.config.write_text(yaml.safe_dump(data))
+        with patch('gits.utils.config_loader.Path.home', return_value=self.base):
+            previous = Path.cwd()
+            try:
+                os.chdir(self.base)
+                group = load_repos()[0]
+                self.assertEqual(group.root, self.root)
+                self.assertEqual(group.repositories[0].path, self.root / 'repo')
+                result = self.runner.invoke(app, ['status', '-v', '-r', 'example'])
+            finally:
+                os.chdir(previous)
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn('repo: success', result.output)
+        self.assertNotIn('Not cloned', result.output)
 
     def test_discovery_is_explicit_and_only_includes_git(self):
         self.init_repo()

@@ -43,7 +43,9 @@ def load_repos(config_file=None):
             if "root_dir" in entry:
                 if not isinstance(entry["root_dir"], str) or not entry["root_dir"]:
                     raise ValueError(f"{name}: root_dir must be a nonempty string.")
-                root = Path(entry["root_dir"]).expanduser().absolute()
+                root = Path(entry["root_dir"]).expanduser()
+                if not root.is_absolute():
+                    root = Path.home() / root
             if "repositories" in entry:
                 if not isinstance(entry["repositories"], list):
                     raise ValueError(f"{name}: repositories must be a list.")

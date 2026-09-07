@@ -591,6 +591,8 @@ gits --help
 
 Repository paths use `target_path` when provided, otherwise `root_dir/alias`.
 Both configured paths expand `~`; groups without `root_dir` default to `~/group`.
+Relative `root_dir` values are relative to your home directory, so `root_dir: soup`
+means `~/soup` regardless of the directory where you run `gits`.
 Configuration is validated before operations begin. An unknown group is an error.
 
 Only `pull` discovers additional Git working directories directly under a group
