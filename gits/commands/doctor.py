@@ -1,68 +1,28 @@
-from pathlib import Path
+import platform
 import shutil
 import sys
-import platform
 from typing import Optional
+
 import typer
-
+from gits.utils.cli import configured, options
 from gits.utils.config_loader import CONFIG_FILE
+from gits.utils.repos import selected_groups
 
-import gits.ui.icons as ICONS
-from gits.utils.repos import filtered_repos
 
 def doctor(
-    repo_group: Optional[str] = typer.Option(None, "--repo-group", "-r", help="Limit to a specific group.")
+    ctx: typer.Context,
+    repo_group: Optional[str] = typer.Option(None, "--repo-group", "-r"),
 ):
     """Run environment and configuration checks for gits."""
-    typer.echo(f"{ICONS.DOC} Running system diagnostics.")
-
-    # Check Python version
-    python_version = sys.version_info
-    if python_version >= (3, 8):
-        typer.echo(f"   {ICONS.SUCCESS} Python >= 3.8: {platform.python_version()}")
-    else:
-        typer.echo(f"   {ICONS.ERROR} Python >= 3.8 required. Found: {platform.python_version()}")
-
-    # Check if git is installed
-    if shutil.which("git"):
-        typer.echo(f"   {ICONS.SUCCESS} git found in PATH")
-    else:
-        typer.echo(f"   {ICONS.ERROR} git not found in PATH")
-
-    # Check config file
-    if CONFIG_FILE.exists():
-        typer.echo(f"   {ICONS.SUCCESS} {CONFIG_FILE} found")
-    else:
-        typer.echo(f"   {ICONS.ERROR} {CONFIG_FILE} missing")
-
-    # Load and check filtered repos
-    try:
-        groups = list(filtered_repos(repo_group))
-        typer.echo(f"{ICONS.GROUP} {repo_group}")
-        typer.echo(f"   {ICONS.SUCCESS} Repos: {len(groups)}")
-    except Exception as e:
-        typer.echo(f"{ICONS.ERROR} Failed to parse repository config: {e}")
-        return
-
-    # Check each repo
-    for group_name, repo in groups:
-        alias = repo["alias"]
-        typer.echo(f"   {ICONS.SUCCESS} Alias: {alias}")
-
-        if repo.get("target_path"):
-            typer.echo(f"      {ICONS.INFO} root_dir: True")
-        else:
-            typer.echo(f"      {ICONS.INFO} Target_path: True")
-
-        path = Path(repo.get("target_path") or Path.home() / group_name / alias)
-        if path.parent.exists():
-            typer.echo(f"      {ICONS.INFO} path: {path}")
-        else:
-            typer.echo(f"      {ICONS.WARNING} path: not found")
-
-        if path.parent.exists():
-            typer.echo(f"      {ICONS.INFO} Found: {path.parent}")
-        else:
-            typer.echo(f"      {ICONS.WARNING} Not Found: {path.parent}")
-
-    typer.echo(f"{ICONS.DOC} Diagnostics complete.")
+    opts = options(ctx, repo_group)
+    typer.echo(f"Python: {platform.python_version()}")
+    git_found = shutil.which("git") is not None
+    typer.echo(f"Git: {'found' if git_found else 'missing'}")
+    typer.echo(f"Configuration: {CONFIG_FILE}")
+    for group in configured(lambda: selected_groups(opts.repo_group)):
+        typer.echo(f"Group: {group.name} ({group.root})")
+        for repo in group.repositories:
+            state = "found" if (repo.path / ".git").exists() else "not cloned"
+            typer.echo(f"   {repo.alias}: {repo.path} ({state})")
+    if not git_found or sys.version_info < (3, 8):
+        raise typer.Exit(1)

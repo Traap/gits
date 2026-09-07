@@ -1,3 +1,6 @@
 gits/__pycache__/
 gits/commands/__pycache__/
 gits/utils/__pycache__/
+
+.venv/
+__pycache__/

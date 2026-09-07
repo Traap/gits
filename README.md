@@ -578,3 +578,30 @@ uv pip install -e .
 ```bash
 gits --help
 ```
+
+## Refactored command behavior
+
+Repository paths use `target_path` when provided, otherwise `root_dir/alias`.
+Both configured paths expand `~`; groups without `root_dir` default to `~/group`.
+Configuration is validated before operations begin. An unknown group is an error.
+
+Only `pull` discovers additional Git working directories directly under a group
+root. Other commands operate on configured repositories. Discovered directories
+are never cloned or deleted.
+
+Shared options work before or after the command name, for example
+`gits -r traap -n pop` and `gits pop -r traap -n`. With no command, `gits`
+runs status. Dry-run prevents mutations, including stash pops.
+
+Operations report failures even without verbose mode and exit with status 1 if
+any repository operation fails. Verbose output shows per-repository results;
+parallel commands collect results in repository order. Earlier console examples
+illustrate usage but may differ from the current result formatting.
+
+Conversion processes UTF-16 files with a byte-order mark, skips directories,
+symlinks and `.git` metadata, and reports decoding or filesystem failures.
+
+Run the isolated test suite with `./test-plan.sh` after installing dependencies
+in `.venv`. Alternatively, run `python -m unittest discover -s tests -v` in an
+environment with the project dependencies installed. Tests create temporary
+local repositories and do not use your repository configuration or network.

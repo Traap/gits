@@ -1,15 +1,5 @@
-import sys
-import io
 import typer
 from typing import Optional
-
-# ---------------------------------------------------------------------------
-# 🧩 Ensure UTF-8 output across all platforms. This prevendts UnicodeEncodeError
-# on Windows.
-# ---------------------------------------------------------------------------
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-
 
 from gits.commands.clean import clean
 from gits.commands.clone import clone
@@ -24,30 +14,8 @@ from gits.commands.status import status
 
 app = typer.Typer(help="Manage git repositories defined in YAML configuration.")
 
-known_commands = {
-    "clean",
-    "clone",
-    "convert",
-    "delete",
-    "doctor",
-    "list",
-    "pop",
-    "pull",
-    "stash",
-    "status"
-    }
-
-# Register each command
-app.command()(clean)
-app.command()(clone)
-app.command()(convert)
-app.command()(delete)
-app.command()(doctor)
-app.command()(list)
-app.command()(pop)
-app.command()(pull)
-app.command()(stash)
-app.command()(status)
+for command in (clean, clone, convert, delete, doctor, list, pop, pull, stash, status):
+    app.command()(command)
 
 @app.callback(invoke_without_command=True)
 def default_command(
@@ -56,7 +24,8 @@ def default_command(
     verbose: bool = typer.Option(False, "--verbose", "-v"),
     dry_run: bool = typer.Option(False, "--dry-run", "-n"),
 ):
-    args = [arg for arg in sys.argv[1:] if not arg.startswith("-")]
-    if not args or args[0] not in known_commands:
-        status(ctx=ctx, repo_group=repo_group, verbose=verbose, dry_run=dry_run)
+    from gits.utils.cli import Options
 
+    ctx.obj = Options(repo_group, verbose, dry_run)
+    if ctx.invoked_subcommand is None:
+        status(ctx=ctx, repo_group=repo_group, verbose=verbose, dry_run=dry_run)
