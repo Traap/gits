@@ -39,6 +39,9 @@ def report(results, verbose=False, always=False):
             group = result.repo.group_name
             typer.echo(f"{ICONS.GROUP} {group}")
         icon = ICONS.ERROR if result.state == "failed" else ICONS.INFO
+        if result.state == "failed" and result.output.startswith("fatal: not a git repository"):
+            typer.echo(f"   {icon} {result.repo.alias}: not a git repository")
+            continue
         typer.echo(f"   {icon} {result.repo.alias}: {result.state}")
         if result.output:
             typer.echo("\n".join(f"      {line}" for line in result.output.splitlines()))
