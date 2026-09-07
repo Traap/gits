@@ -1,2 +1,3 @@
-# gits/__init__.py
-# Marks this directory as a Python package.
+"""Git repository group manager."""
+
+__version__ = "0.3.0"

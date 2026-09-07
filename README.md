@@ -112,6 +112,14 @@ traap:
 ```
 
 ## 🧠 Usage
+### Version
+```bash
+gits version
+```
+```console
+v0.3.0
+```
+
 ### 🧪 Help
 ```bash
 gits --help

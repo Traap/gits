@@ -11,10 +11,11 @@ from gits.commands.pull import pull
 from gits.commands.stash import stash
 from gits.commands.pop import pop
 from gits.commands.status import status
+from gits.commands.version import version
 
 app = typer.Typer(help="Manage git repositories defined in YAML configuration.")
 
-for command in (clean, clone, convert, delete, doctor, list, pop, pull, stash, status):
+for command in (clean, clone, convert, delete, doctor, list, pop, pull, stash, status, version):
     app.command()(command)
 
 @app.callback(invoke_without_command=True)

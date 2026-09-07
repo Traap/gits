@@ -90,6 +90,12 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn('Not cloned', result.output)
 
+    def test_version_without_configuration(self):
+        self.config.unlink()
+        result = self.runner.invoke(app, ['version'])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(result.output, 'v0.3.0\n')
+
     def test_pop_dry_run_preserves_stash_and_worktree(self):
         path = self.init_repo()
         (path / 'file').write_text('stashed')
